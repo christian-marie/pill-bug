@@ -23,7 +23,7 @@ executable pill-bug
                        unix,
                        io-streams,
                        stm,
-                       bytestring
-        	       time
+                       bytestring,
+                       time
   -- hs-source-dirs:      
   default-language:    Haskell2010
