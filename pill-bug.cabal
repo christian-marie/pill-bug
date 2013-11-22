@@ -20,6 +20,7 @@ executable pill-bug
   -- other-modules:       
   -- other-extensions:    
   build-depends:       base >=4.6 && <4.7,
+                       unix,
                        io-streams,
                        stm,
                        bytestring
