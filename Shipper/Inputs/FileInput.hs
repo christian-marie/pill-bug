@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings, RecordWildCards, ScopedTypeVariables #-}
 module Shipper.Inputs.FileInput (readFileInput) where
 
 import Shipper.Types
@@ -87,7 +87,7 @@ isRotated path last_inode =  do
         inode <- getFileID path
         return (inode, inode /= last_inode)
     case r of 
-        Left e       -> print (e :: IOException) >> return (last_inode, False)
+        Left (_ :: IOException) -> return (last_inode, False)
         Right result -> return result
 
 -- Retrieve an inode number. This is not portable.
