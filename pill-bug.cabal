@@ -21,9 +21,10 @@ executable pill-bug
   -- other-extensions:    
   build-depends:       base >=4.6 && <4.7,
                        unix,
-                       io-streams,
                        stm,
                        bytestring,
-                       time
+                       time,
+                       parsec,
+                       deepseq,
   -- hs-source-dirs:      
   default-language:    Haskell2010

@@ -1,7 +1,6 @@
 module Shipper (
     startShipper,
     Event,
-    ShipperConfig(..),
     Input(..),
     Output(..),
 ) where
@@ -12,7 +11,7 @@ import Shipper.Types
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TBQueue 
 import Control.Concurrent (forkIO)
-import Control.Monad (forever, forM_)
+import Control.Monad (forever, forM_, unless)
 
 
 pollPeriod :: Int
@@ -22,17 +21,23 @@ pollPeriod = 100000
 queueSize :: Int
 queueSize = 1
 
-startShipper :: ShipperConfig -> IO ()
-startShipper config = do
-    let inputs' = inputs config
+startShipper :: [ConfigSegment] -> IO ()
+startShipper segments = do
     ch <- atomically $ newTBQueue queueSize
 
-    -- A thread for each input
-    forM_ inputs' $ \i -> forkIO $ case i of 
-        FileInput _ _ _ -> readFileInput ch i pollPeriod
+    unless (any isInputSegment segments) $ error "No inputs specified"
+    
+    -- Do something useful for each configuration segment
+    forM_ segments $ \s ->
+        case s of 
+            InputSegment i -> 
+                case i of
+                    FileInput _ _ _ -> forkIO $ readFileInput ch i pollPeriod
 
     -- TODO: send events to outputs, not print
     forever $ do
         event <- atomically $ readTBQueue ch
         print event
-
+  where
+    isInputSegment (InputSegment _) = True
+    isInputSegment _ = False

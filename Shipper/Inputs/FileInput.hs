@@ -22,11 +22,14 @@ chunkSize = 1048576 -- 1MB
 rotationWait :: Int
 rotationWait = 3000000 -- 3 seconds
 
--- Start the log watching process by opening the file and seeking to end.
 readFileInput :: TBQueue Event -> Input -> Int -> IO ()
-readFileInput ch input@FileInput{..} wait_time = 
-    withFile filePath ReadMode $ \h -> do
-        inode <- getFileID filePath
+readFileInput = undefined
+
+-- Start the log watching process by opening the file and seeking to end.
+readThread :: FilePath -> TBQueue Event -> Input -> Int -> IO ()
+readThread log_path ch input@FileInput{..} wait_time = 
+    withFile log_path ReadMode $ \h -> do
+        inode <- getFileID log_path
         hSeek h SeekFromEnd 0
         readLog h inode 
     `catch` \e -> do 
@@ -34,13 +37,13 @@ readFileInput ch input@FileInput{..} wait_time =
         -- here or in our caller, I prefer here.
         print (e :: SomeException)
         threadDelay wait_time
-        readFileInput ch input wait_time
+        readThread log_path ch input wait_time
   where
     -- Read events whilst watching for log rotations, we know that a log has
-    -- rotated when the inode of the filePath changes.
+    -- rotated when the inode of the log_path changes.
     readLog :: Handle -> FileID -> IO ()
     readLog h last_inode = do
-        (inode, rotated) <- isRotated filePath last_inode
+        (inode, rotated) <- isRotated log_path last_inode
         if rotated
         then do 
             -- Daemons can still write to the now 'old' handle, so we need to
@@ -50,7 +53,7 @@ readFileInput ch input@FileInput{..} wait_time =
                     replicateM_ n $ emitFrom h >> threadDelay wait_time
                 hClose h
             -- Continue reading from beginning of new file
-            withFile filePath ReadMode $ \newh -> readLog newh inode 
+            withFile log_path ReadMode $ \newh -> readLog newh inode 
         else do 
             -- During normal operation, just emit events, sleep and try again
             emitFrom h
@@ -71,7 +74,7 @@ readFileInput ch input@FileInput{..} wait_time =
         t <- getCurrentTime
         return Event
             {message = line
-            ,source  = filePath
+            ,source  = log_path
             ,tags    = fTags
             ,tipe    = fType
             ,time    = t
