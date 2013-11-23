@@ -30,16 +30,16 @@ fileInputSegment ds = InputSegment FileInput
 
     need k = case lookup k ds of
         Just v -> v
-        Nothing -> error $ "File input expected key: " ++ k
+        Nothing -> error $ "File input expected key: " ++ k ++ show ds
 
 config :: GenParser Char st [ConfigSegment]
 config = many segment <* eof
 
 segment :: GenParser Char st ConfigSegment
-segment = (spaces *> beginSegment) <*> (directives <* endSegment <* spaces)
+segment = (spaces *> beginSegment) <*> (spaces *> directives <* endSegment <* spaces)
 
 beginSegment :: GenParser Char st ( [Directive] -> ConfigSegment )
-beginSegment = possibleSegment <* actualSpaces <* char '{' 
+beginSegment = possibleSegment <* spaces <* char '{' 
 
 possibleSegment :: GenParser Char st ([Directive] -> ConfigSegment )
 possibleSegment =
@@ -53,25 +53,25 @@ directives = many directive
 
 directive :: GenParser Char st Directive
 directive = fmap (,)
-    (actualSpaces *> key <* actualSpaces <* char '=') <*>
-    (actualSpaces *> values <* spaces)
+    (spaces *> key <* spaces <* char '=') <*>
+    (spaces *> values <* spaces)
 
 -- A key must not start with '}' as it begins directives on a new line and thus
 -- it is impossible to distinguish between '}' and the beginning of a valid key
 -- name.
 key :: GenParser Char st Key
-key = manyTill (noneOf "}") (try . lookAhead $ equals)
-  where equals = actualSpaces <* char '='
+key = manyTill (noneOf "\n}") (try . lookAhead $ equals)
+  where equals = spaces <* char '='
 
 values :: GenParser Char st [Value]
 values = value `sepBy` separator
 
 value :: GenParser Char st Value
-value = actualSpaces *> value' <* actualSpaces
+value = spaces *> value' <* spaces
   where
     value' = manyTill anyChar $ lookAhead $ try $
-        actualSpaces *> choice [ separator
-                               , void $ newline
+        spaces *> choice [ separator
+                               , void $ key
                                , endSegment
                                , eof
                                ]
@@ -79,5 +79,3 @@ value = actualSpaces *> value' <* actualSpaces
 separator :: GenParser Char st ()
 separator = void $ char ','
 
-actualSpaces :: GenParser Char st ()
-actualSpaces = skipMany $ oneOf " \t"
