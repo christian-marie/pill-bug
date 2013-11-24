@@ -26,5 +26,6 @@ executable pill-bug
                        time,
                        parsec,
                        deepseq,
+                       Glob
   -- hs-source-dirs:      
   default-language:    Haskell2010

@@ -7,12 +7,13 @@ import Control.Concurrent.STM.TBQueue
 import Control.Concurrent
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString as B
-import System.IO
+import System.IO 
 import Control.Exception
 import Control.Monad
 import System.Posix.Files
 import System.Posix.Types (FileID)
 import Data.Time
+import System.FilePath.Glob
 
 -- How much data to try to read at a time.
 chunkSize :: Int
@@ -23,7 +24,15 @@ rotationWait :: Int
 rotationWait = 3000000 -- 3 seconds
 
 readFileInput :: TBQueue Event -> Input -> Int -> IO ()
-readFileInput = undefined
+readFileInput fp input@FileInput{..} wait_time = do
+    files <- expandGlobs filePaths
+    print files
+
+-- Take a list of globs like [ "/tmp/*.log", "/actual_file" ] and expand them
+-- 
+-- / here is not portable. I don't care.
+expandGlobs :: [FilePath] -> IO [FilePath]
+expandGlobs fps = (concat . fst) `liftM` globDir (map compile fps) "/"
 
 -- Start the log watching process by opening the file and seeking to end.
 readThread :: FilePath -> TBQueue Event -> Input -> Int -> IO ()
