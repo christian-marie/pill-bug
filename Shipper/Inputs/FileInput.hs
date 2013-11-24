@@ -14,6 +14,7 @@ import System.Posix.Files
 import System.Posix.Types (FileID)
 import Data.Time
 import System.FilePath.Glob
+import System.Directory (doesFileExist)
 import qualified Control.Concurrent.ThreadManager as TM
 
 -- How much data to try to read at a time.
@@ -69,13 +70,17 @@ readFileInput ch input@FileInput{..} wait_time = do
         manageThreads manager new_threads
 
         
-    newThread manager file = TM.fork manager $ readThread ch input wait_time file
+    newThread manager file = TM.fork manager $
+        readThread ch input wait_time file
 
 -- Take a list of globs like [ "/tmp/*.log", "/actual_file" ] and expand them
--- 
--- / here is not portable. I don't care.
+-- We also filter out all non-files, such as directories. This is so that you
+-- can use a glob like /var/log/*
+--
+-- Not that it's a good idea.
 expandGlobs :: [FilePath] -> IO [FilePath]
-expandGlobs fps = (concat . fst) `liftM` globDir (map compile fps) "/"
+expandGlobs fps = filterM doesFileExist =<< allMatches
+  where allMatches = (concat . fst) `liftM` globDir (map compile fps) "/"
 
 -- Start the log watching process by opening the file and seeking to end.
 readThread ::  TBQueue Event -> Input -> Int -> FilePath -> IO ()
