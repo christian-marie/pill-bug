@@ -15,6 +15,7 @@ type Directive = (Key, [Value])
 parseConfig :: FilePath -> IO [ConfigSegment]
 parseConfig f = parseFromFile config f >>= either (error . show) return
 
+-- Create a file input segment, requires only 'path'
 fileInputSegment :: [Directive] -> ConfigSegment
 fileInputSegment ds = InputSegment FileInput
     { fTags = tags'
@@ -23,31 +24,31 @@ fileInputSegment ds = InputSegment FileInput
     }
   where
     tags' = want "tags" []
-    tipe' = fromMaybe "file" . listToMaybe $ want "type" ["file"] 
-    fp = need "paths"
+    tipe' = fromMaybe "file" . listToMaybe $ want "type" ["file"]
+    fp    = need "paths"
 
     want k def = fromMaybe def $ lookup k ds 
 
     need k = case lookup k ds of
-        Just v -> v
+        Just v  -> v
         Nothing -> error $ "File input expected key: " ++ k ++ show ds
 
 -- A config is simply many unordered segments
 config :: GenParser Char st [ConfigSegment]
 config = some segment <* eof
 
-
 -- Segments are built here, by applying the function parsed from beginSegment
 -- to the directives eaten within that segment. Simple! Sort of.
 segment :: GenParser Char st ConfigSegment
-segment = (spaces *> beginSegment) <*> (spaces *> directives <* endSegment <* spaces)
+segment = (spaces *> beginSegment)
+    <*> (spaces *> directives <* endSegment <* spaces)
 
 -- We try to see if this is a valid segment by parsing the word before a '{'
 beginSegment :: GenParser Char st ( [Directive] -> ConfigSegment )
 beginSegment = possibleSegment <* spaces <* char '{' 
   where
-    -- Any valid segments need to be defined here, returning function that builds a
-    -- ConfigSegment from a list of Directives
+    -- Any valid segments need to be defined here, returning function that
+    -- builds a ConfigSegment from a list of Directives
     possibleSegment = fileInputSegment <$ string "file"
 
 endSegment :: GenParser Char st ()
