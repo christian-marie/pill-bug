@@ -12,6 +12,19 @@ type Key       = String
 type Value     = String
 type Directive = (Key, [Value])
 
+-- A simple parser for pill-bug configurations.
+--
+-- Configurations take the form of segments with many key, values pairs.
+-- That is, one key and one ore more values.
+--
+-- For example:
+-- 
+-- file {
+--   path = '/dev/space and a quote\'', /etc/passwd,
+--          "double quotes are fine too"
+--          ,also odd placement of commas and bare strings, yay
+--   tags = 1,2,3
+-- }
 parseConfig :: FilePath -> IO [ConfigSegment]
 parseConfig f = parseFromFile config f >>= either (error . show) return
 
@@ -63,11 +76,10 @@ directive = fmap (,)
     (spaces *> key <* spaces <* char '=') <*>
     (spaces *> values <* spaces)
 
--- A key must not include '\n' as it is used as an anchor for where a
--- value ends if a value spans multiple lines. Also, not '}' as that needs to
--- terminate a set of directives.
+-- A key must not include any magic characters that mean things to values or
+-- segments as they are used as an anchor for values spanning multiple lines.
 key :: GenParser Char st Key
-key = manyTill (noneOf "\r\n}") (try . lookAhead $ equals)
+key = manyTill (noneOf "\r\n}'\"") (try . lookAhead $ equals)
   where equals = spaces <* char '='
 
 values :: GenParser Char st [Value]
