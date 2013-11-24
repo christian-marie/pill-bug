@@ -24,20 +24,51 @@ chunkSize = 1048576 -- 1MB
 rotationWait :: Int
 rotationWait = 3000000 -- 3 seconds
 
+-- How often to re-evaluate globs and check on the health of all threads
+globRate :: Int
+globRate = 1000000
+
 readFileInput :: TBQueue Event -> Input -> Int -> IO ()
 readFileInput ch input@FileInput{..} wait_time = do
-    files <- expandGlobs filePaths
-
     manager <- TM.make
-    threads <- mapM (newThread manager) files
-    let fileThreads = zip files threads
-
-    statuses <- mapM (TM.getStatus manager) threads
-    threadDelay 10000
-    statuses <- mapM (TM.getStatus manager) threads
-    print statuses
-    return ()
+    manageThreads manager ([] :: [(FilePath, ThreadId)])
   where
+    -- Constantly glob all filePaths, ensuring that each globbed item has one
+    -- healthy thread running.
+    manageThreads :: TM.ThreadManager -> [(FilePath, ThreadId)] -> IO ()
+    manageThreads manager threads = do
+        files <- expandGlobs filePaths
+
+        -- This gets a bit unreadable here, but bear with me:
+        -- For each globbed file, we check if there is a thread registered
+        new_threads <- forM files $ \f -> case lookup f threads of
+            -- In the event of one being regisered, we check the status of it
+            Just tid -> TM.getStatus manager tid >>= \s -> case s of 
+                -- Given a successful lookup:
+                Just status -> case status of
+                    -- Restart if the thread exited normally (shouldn't happen)
+                    TM.Finished -> do
+                        putStrLn $ f ++ "Thread stopped, restarting."
+                        (,) f `liftM` newThread manager f
+
+                    -- Restart if the thread died, this will happen.
+                    TM.Threw e -> do
+                        putStrLn $ "File input: " ++ show e
+                        (,) f `liftM` newThread manager f
+
+                    -- And carry on if everything is okay.
+                    TM.Running -> return (f, tid)
+
+                -- This bit shouldn't happen, start one anyway.
+                Nothing -> (,) f `liftM` newThread manager f
+                    
+            -- Thread isn't registered yet, start one
+            Nothing -> (,) f `liftM` newThread manager f
+        
+        threadDelay globRate
+        manageThreads manager new_threads
+
+        
     newThread manager file = TM.fork manager $ readThread ch input wait_time file
 
 -- Take a list of globs like [ "/tmp/*.log", "/actual_file" ] and expand them
@@ -50,6 +81,7 @@ expandGlobs fps = (concat . fst) `liftM` globDir (map compile fps) "/"
 readThread ::  TBQueue Event -> Input -> Int -> FilePath -> IO ()
 readThread ch FileInput{..} wait_time log_path = 
     withFile log_path ReadMode $ \h -> do
+        putStrLn $ "Watching: " ++ log_path
         inode <- getFileID log_path
         hSeek h SeekFromEnd 0
         readLog h inode 
