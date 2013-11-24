@@ -32,50 +32,78 @@ fileInputSegment ds = InputSegment FileInput
         Just v -> v
         Nothing -> error $ "File input expected key: " ++ k ++ show ds
 
+-- A config is simply many unordered segments
 config :: GenParser Char st [ConfigSegment]
-config = many segment <* eof
+config = some segment <* eof
 
+
+-- Segments are built here, by applying the function parsed from beginSegment
+-- to the directives eaten within that segment. Simple! Sort of.
 segment :: GenParser Char st ConfigSegment
 segment = (spaces *> beginSegment) <*> (spaces *> directives <* endSegment <* spaces)
 
+-- We try to see if this is a valid segment by parsing the word before a '{'
 beginSegment :: GenParser Char st ( [Directive] -> ConfigSegment )
 beginSegment = possibleSegment <* spaces <* char '{' 
-
-possibleSegment :: GenParser Char st ([Directive] -> ConfigSegment )
-possibleSegment =
-    fileInputSegment <$ string "file"
+  where
+    -- Any valid segments need to be defined here, returning function that builds a
+    -- ConfigSegment from a list of Directives
+    possibleSegment = fileInputSegment <$ string "file"
 
 endSegment :: GenParser Char st ()
 endSegment = void $ char '}'
 
 directives :: GenParser Char st [Directive]
-directives = many directive
+directives = some directive
 
+-- We turn a = b & c into ("a", ["b", "c"])
 directive :: GenParser Char st Directive
 directive = fmap (,)
     (spaces *> key <* spaces <* char '=') <*>
     (spaces *> values <* spaces)
 
--- A key must not start with '}' as it begins directives on a new line and thus
--- it is impossible to distinguish between '}' and the beginning of a valid key
--- name.
+-- A key must not include '\n' as it is used as an anchor for where a
+-- value ends if a value spans multiple lines. Also, not '}' as that needs to
+-- terminate a set of directives.
 key :: GenParser Char st Key
-key = manyTill (noneOf "\n}") (try . lookAhead $ equals)
+key = manyTill (noneOf "\r\n}") (try . lookAhead $ equals)
   where equals = spaces <* char '='
 
 values :: GenParser Char st [Value]
 values = value `sepBy` separator
 
 value :: GenParser Char st Value
-value = spaces *> value' <* spaces
+value = spaces *> (
+        quotedString '"'
+        <|> quotedString '\''
+        <|> literalString
+    ) <* spaces
+
+-- Literal strings are basically barewords, the only limitation being
+-- whitespace at the beginning/end of lines, double quotes and commas.
+literalString :: CharParser st String
+literalString = rstrip `liftM` (many $ noneOf ",\n\r'\"")
+    <?> "literal string"
+
+-- If you need whitespace at the beginning/end of lines, double quotes or
+-- commas, you have a quoted string with \" to escape double quotes
+quotedString :: Char -> CharParser st String
+quotedString q = concat `liftM` do
+    quote *> many quotedContents <* quote <?> "quoted string"
   where
-    value' = manyTill anyChar $ lookAhead $ try $
-        spaces *> choice [ separator
-                               , void $ key
-                               , endSegment
-                               , eof
-                               ]
+    quote          = char q
+    quotedContents = many1 (quotedText <|> quoteEscape)
+    quotedText     = noneOf ("\\\r\n" ++ [q]) <?> "quoted text"
+    quoteEscape    = char '\\' *> char q <?> "quote escape"
 
 separator :: GenParser Char st ()
 separator = void $ char ','
 
+lstrip, rstrip:: String -> String
+lstrip s = case s of
+                  [] -> []
+                  (x:xs) -> if elem x " \t"
+                            then lstrip xs
+                            else s
+
+rstrip = reverse . lstrip . reverse
