@@ -14,6 +14,7 @@ import System.Posix.Files
 import System.Posix.Types (FileID)
 import Data.Time
 import System.FilePath.Glob
+import qualified Control.Concurrent.ThreadManager as TM
 
 -- How much data to try to read at a time.
 chunkSize :: Int
@@ -24,9 +25,20 @@ rotationWait :: Int
 rotationWait = 3000000 -- 3 seconds
 
 readFileInput :: TBQueue Event -> Input -> Int -> IO ()
-readFileInput fp input@FileInput{..} wait_time = do
+readFileInput ch input@FileInput{..} wait_time = do
     files <- expandGlobs filePaths
-    print files
+
+    manager <- TM.make
+    threads <- mapM (newThread manager) files
+    let fileThreads = zip files threads
+
+    statuses <- mapM (TM.getStatus manager) threads
+    threadDelay 10000
+    statuses <- mapM (TM.getStatus manager) threads
+    print statuses
+    return ()
+  where
+    newThread manager file = TM.fork manager $ readThread ch input wait_time file
 
 -- Take a list of globs like [ "/tmp/*.log", "/actual_file" ] and expand them
 -- 
@@ -35,18 +47,12 @@ expandGlobs :: [FilePath] -> IO [FilePath]
 expandGlobs fps = (concat . fst) `liftM` globDir (map compile fps) "/"
 
 -- Start the log watching process by opening the file and seeking to end.
-readThread :: FilePath -> TBQueue Event -> Input -> Int -> IO ()
-readThread log_path ch input@FileInput{..} wait_time = 
+readThread ::  TBQueue Event -> Input -> Int -> FilePath -> IO ()
+readThread ch FileInput{..} wait_time log_path = 
     withFile log_path ReadMode $ \h -> do
         inode <- getFileID log_path
         hSeek h SeekFromEnd 0
         readLog h inode 
-    `catch` \e -> do 
-        -- Restart from the end in the event of an explosion. We can do this
-        -- here or in our caller, I prefer here.
-        print (e :: SomeException)
-        threadDelay wait_time
-        readThread log_path ch input wait_time
   where
     -- Read events whilst watching for log rotations, we know that a log has
     -- rotated when the inode of the log_path changes.
