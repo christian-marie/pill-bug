@@ -10,7 +10,7 @@ import Shipper.Types
 
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TBQueue 
-import Control.Concurrent (forkIO, threadDelay)
+import Control.Concurrent (forkIO)
 import Control.Monad (forever, forM_, unless)
 
 
@@ -36,7 +36,6 @@ startShipper segments = do
 
     -- TODO: send events to outputs, not print
     forever $ do
-        threadDelay 1000000
         event <- atomically $ readTBQueue ch
         print event
   where

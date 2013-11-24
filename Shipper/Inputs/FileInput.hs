@@ -81,7 +81,6 @@ expandGlobs fps = (concat . fst) `liftM` globDir (map compile fps) "/"
 readThread ::  TBQueue Event -> Input -> Int -> FilePath -> IO ()
 readThread ch FileInput{..} wait_time log_path = 
     withFile log_path ReadMode $ \h -> do
-        putStrLn $ "Watching: " ++ log_path
         inode <- getFileID log_path
         hSeek h SeekFromEnd 0
         readLog h inode 
