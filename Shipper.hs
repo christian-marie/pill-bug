@@ -28,11 +28,9 @@ startShipper segments = do
     unless (any isInputSegment segments) $ error "No inputs specified"
     
     -- Do something useful for each configuration segment
-    forM_ segments $ \s ->
-        case s of 
-            InputSegment i -> 
-                case i of
-                    FileInput _ _ _ -> forkIO $ readFileInput ch i pollPeriod
+    forM_ segments $ \s -> case s of 
+        InputSegment i -> case i of
+            FileInput _ _ _ -> forkIO $ readFileInput ch i pollPeriod
 
     -- TODO: send events to outputs, not print
     forever $ do
@@ -40,4 +38,4 @@ startShipper segments = do
         print event
   where
     isInputSegment (InputSegment _) = True
-    isInputSegment _ = False
+    isInputSegment _                = False
