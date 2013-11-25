@@ -33,7 +33,7 @@ fileInputSegment info = InputSegment FileInput
     , fExtra    = getExtras
     }
   where
-    getExtras = filter ((/="paths").fst) info
+    getExtras = filter ((/="paths") . fst) info
 
     fp = case lookup "paths" info of
         Just v -> case v of
@@ -48,6 +48,11 @@ fileInputSegment info = InputSegment FileInput
 -- Create a debug output segment, requires no extra data
 debugOutputSegment :: [ExtraInfoPair] -> ConfigSegment
 debugOutputSegment _ = OutputSegment Debug {}
+
+-- Create a ZMQ output segment, requires no extra data
+zmqOutputSegment :: [ExtraInfoPair] -> ConfigSegment
+zmqOutputSegment _ = OutputSegment ZMQ {}
+
 
 -- A config is zero or more segments
 config :: GenParser Char st [ConfigSegment]
@@ -66,8 +71,9 @@ beginSegment = possibleSegment <* spaces <* char '{'
   where
     -- Any valid segments need to be defined here, returning function that
     -- builds a ConfigSegment from a list of ExtraInfos
-    possibleSegment = fileInputSegment   <$ string "file" <|>
-                      debugOutputSegment <$ string "debug"
+    possibleSegment =     fileInputSegment   <$ string "file" 
+                      <|> debugOutputSegment <$ string "debug"
+                      <|> zmqOutputSegment   <$ string "zmq"
 
 endSegment :: GenParser Char st ()
 endSegment = void $ char '}'

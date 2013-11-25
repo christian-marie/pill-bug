@@ -42,6 +42,7 @@ startShipper segments = do
         out_chan <- atomically $ newTBQueue queueSize
         case o of 
             Debug -> forkIO $ startDebugOutput out_chan
+            ZMQ   -> forkIO $ startZMQOutput out_chan
         return out_chan
 
     forever $ do
