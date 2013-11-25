@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, RecordWildCards, ScopedTypeVariables,
              TupleSections #-}
-module Shipper.Inputs.FileInput (readFileInput) where
+module Shipper.Inputs.FileInput (startFileInput) where
 
 import Shipper.Types
 import Control.Concurrent.STM (atomically)
@@ -31,8 +31,8 @@ rotationWait = 3000000 -- 3 seconds
 globRate :: Int
 globRate = 1000000
 
-readFileInput :: TBQueue Event -> Input -> Int -> IO ()
-readFileInput ch input@FileInput{..} wait_time = do
+startFileInput :: TBQueue Event -> Input -> Int -> IO ()
+startFileInput ch input@FileInput{..} wait_time = do
     manager <- TM.make
     manageThreads manager ([] :: [(FilePath, ThreadId)])
   where

@@ -30,10 +30,13 @@ data Output = Debug
 data ConfigSegment = InputSegment Input | OutputSegment Output
     deriving (Show)
 
-instance NFData (ConfigSegment) where
-     rnf (InputSegment a) = a `deepseq` ()
+instance NFData ConfigSegment where
+     rnf (InputSegment a)  = a `deepseq` ()
+     rnf (OutputSegment a) = a `deepseq` ()
 
-instance NFData (Input) where
+instance NFData Input where
      rnf (FileInput a b c) = a `deepseq` b `deepseq` c `deepseq` ()
 
+instance NFData Output where
+     rnf Debug = ()
 

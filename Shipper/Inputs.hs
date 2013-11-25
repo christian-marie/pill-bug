@@ -1,5 +1,5 @@
 module Shipper.Inputs (
-    readFileInput,
+    startFileInput,
 ) where
 
 import Shipper.Inputs.FileInput

@@ -3,10 +3,11 @@ module Shipper.ConfigParser (
 ) where
 
 import Shipper.Types
-import Text.ParserCombinators.Parsec
+import Text.ParserCombinators.Parsec hiding ((<|>), many)
 import Data.Maybe (fromMaybe, listToMaybe)
 import Control.Monad
-import Control.Applicative hiding ((<|>), many)
+import Control.Applicative
+import Control.DeepSeq
 
 type Key       = String
 type Value     = String
@@ -26,7 +27,8 @@ type Directive = (Key, [Value])
 --   tags = 1,2,3
 -- }
 parseConfig :: FilePath -> IO [ConfigSegment]
-parseConfig f = parseFromFile config f >>= either (error . show) return
+parseConfig f = force `liftM` cfg
+  where cfg = parseFromFile config f >>= either (error . show) return
 
 -- Create a file input segment, requires only 'path'
 fileInputSegment :: [Directive] -> ConfigSegment
@@ -44,7 +46,11 @@ fileInputSegment ds = InputSegment FileInput
 
     need k = case lookup k ds of
         Just v  -> v
-        Nothing -> error $ "File input expected key: " ++ k ++ show ds
+        Nothing -> error $ "File input expected key: " ++ k
+
+-- Create a debug output segment, requires no extra data
+debugOutputSegment :: [Directive] -> ConfigSegment
+debugOutputSegment _ = OutputSegment Debug {}
 
 -- A config is simply many unordered segments
 config :: GenParser Char st [ConfigSegment]
@@ -63,13 +69,14 @@ beginSegment = possibleSegment <* spaces <* char '{'
   where
     -- Any valid segments need to be defined here, returning function that
     -- builds a ConfigSegment from a list of Directives
-    possibleSegment = fileInputSegment <$ string "file"
+    possibleSegment = fileInputSegment   <$ string "file" <|>
+                      debugOutputSegment <$ string "debug"
 
 endSegment :: GenParser Char st ()
 endSegment = void $ char '}'
 
 directives :: GenParser Char st [Directive]
-directives = some directive
+directives = many directive
 
 -- We turn a = b & c into ("a", ["b", "c"])
 directive :: GenParser Char st Directive
