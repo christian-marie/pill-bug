@@ -6,6 +6,4 @@ import Control.Concurrent.STM.TBQueue
 import Control.Monad
 
 startDebugOutput :: TBQueue Event -> IO ()
-startDebugOutput event_ch = forever $ do
-    event <- atomically $ readTBQueue event_ch
-    print event
+startDebugOutput ch = forever $ (atomically . readTBQueue) ch >>= print

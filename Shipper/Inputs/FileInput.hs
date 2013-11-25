@@ -144,7 +144,7 @@ isRotated path last_inode =  do
         return (inode, inode /= last_inode)
     case r of 
         Left (_ :: IOException) -> return (last_inode, False)
-        Right result -> return result
+        Right result            -> return result
 
 -- Retrieve an inode number. This is not portable.
 getFileID :: FilePath -> IO FileID
