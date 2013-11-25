@@ -16,11 +16,12 @@ import Control.DeepSeq
 -- For example:
 -- 
 -- file {
---   path = '/dev/space and a quote\'', /etc/passwd,
---          "double quotes are fine too"
---          ,also odd placement of commas and bare strings, yay
---   tags = 1,2,3
+-- 	paths = [/tmp/*, /var/log/*]
+-- 	yay = [this works, 'i am a list']
+-- 	other = "just a string"
+-- 	nested = [a nested list:, [with a list,[]]]
 -- }
+
 parseConfig :: FilePath -> IO [ConfigSegment]
 parseConfig f = force `liftM` cfg
   where cfg = parseFromFile config f >>= either (error . show) return
@@ -48,9 +49,9 @@ fileInputSegment info = InputSegment FileInput
 debugOutputSegment :: [ExtraInfoPair] -> ConfigSegment
 debugOutputSegment _ = OutputSegment Debug {}
 
--- A config is simply many unordered segments
+-- A config is zero or more segments
 config :: GenParser Char st [ConfigSegment]
-config = some segment <* eof
+config = many segment <* eof
 
 -- Segments are built here, by applying the function parsed from beginSegment
 -- to the directives eaten within that segment. Simple! Sort of.
@@ -74,7 +75,7 @@ endSegment = void $ char '}'
 directives :: GenParser Char st [ExtraInfoPair]
 directives = many directive
 
--- We turn a = b & c into ("a", ["b", "c"])
+-- We turn a = [b,  c] into ("a", ["b", "c"]), wrapped inside ExtraInfo
 directive :: GenParser Char st ExtraInfoPair
 directive = liftA2 (,)
     (spaces *> key <* spaces <* char '=')
@@ -87,14 +88,19 @@ key = manyTill (noneOf "\r\n}'\"") (try . lookAhead $ equals)
   where equals = spaces <* char '='
 
 
+-- A key may have a list or string, that list may have lists, and that list
+-- lists and so ad infinitum.
 extraInfo :: GenParser Char st ExtraInfo
 extraInfo = spaces *> ( extraList <|> extraString ) <* spaces
 
 extraList, extraString :: GenParser Char st ExtraInfo
+
+-- Strings are just wrapped strings
 extraString = fmap ExtraString anyString
+
+-- A list is denoted by [, this is convenient for not backtracking.
 extraList = fmap ExtraList $ 
     char '[' *> extraInfo `sepBy` separator <* char ']'
-    
 
 anyString :: CharParser st String
 anyString = quotedString '"' <|> quotedString '\'' <|> literalString
