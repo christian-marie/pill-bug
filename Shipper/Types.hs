@@ -23,19 +23,29 @@ data Event = Event
     , time    :: UTCTime
     } deriving (Show)
 
+-- It's a little tricky to get haskell objects packed into msgpack objects as
+-- most datatypes are homgeneous. We get arround this by creating our own
+-- Packable instance that expresses an Event as a heterogeneous map.
 instance Packable Event where
-    from event = fromMap eventLen pf event
+    from = fromMap eventLen (mconcat . kvs)
       where
-        pf = mconcat . keyValues 
-        keyValues e = [ from "message" <> from (message e) ] ++ map extract (extra e)
-        extract (key, value) =
-            from key <> from value
-        eventLen e = length (extra e) + 1
+        -- A msgpack event is the message, then all of the extra data tacked on
+        kvs e = [ from "message" `mappend` from (message e) ]
+                ++ map extract (validExtras e)
+        -- We obviously cannot attach "message" then.
+        validExtras e  = filter ((/="message") . fst) (extra e)
+        extract (k, v) = from k `mappend` from v
+        eventLen e     = length (extra e) + 1
 
+-- We must make this info packable in of itself as it needs to be able to
+-- recurse in the event of a nested array
 instance Packable ExtraInfo where
     from (ExtraString s) = from s
-    from (ExtraList l) = from l
+    from (ExtraList l)   = from l
         
+-- Pulled from Data.MessagePack.
+-- TODO: request that this is exposed as it is useful and we shouldn't have to
+--       steal it
 (<>) :: Monoid m => m -> m -> m
 (<>) = mappend
 
