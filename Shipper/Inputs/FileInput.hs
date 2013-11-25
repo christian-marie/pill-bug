@@ -1,4 +1,5 @@
-{-# LANGUAGE OverloadedStrings, RecordWildCards, ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedStrings, RecordWildCards, ScopedTypeVariables,
+             TupleSections #-}
 module Shipper.Inputs.FileInput (readFileInput) where
 
 import Shipper.Types
@@ -10,6 +11,7 @@ import qualified Data.ByteString as B
 import System.IO 
 import Control.Exception
 import Control.Monad
+import Control.Applicative
 import System.Posix.Files
 import System.Posix.Types (FileID)
 import Data.Time
@@ -42,29 +44,29 @@ readFileInput ch input@FileInput{..} wait_time = do
 
         -- This gets a bit unreadable here, but bear with me:
         -- For each globbed file, we check if there is a thread registered
-        new_threads <- forM files $ \f -> case lookup f threads of
+        new_threads <- forM files $ \file -> case lookup file threads of
             -- In the event of one being regisered, we check the status of it
             Just tid -> TM.getStatus manager tid >>= \s -> case s of 
                 -- Given a successful lookup:
                 Just status -> case status of
                     -- Restart if the thread exited normally (shouldn't happen)
                     TM.Finished -> do
-                        putStrLn $ f ++ "Thread stopped, restarting."
-                        (,) f `liftM` newThread manager f
+                        putStrLn $ file ++ "Thread stopped, restarting."
+                        (file,) <$> newThread manager file
 
                     -- Restart if the thread died, this will happen.
                     TM.Threw e -> do
                         putStrLn $ "File input: " ++ show e
-                        (,) f `liftM` newThread manager f
+                        (file,) <$> newThread manager file
 
                     -- And carry on if everything is okay.
-                    TM.Running -> return (f, tid)
+                    TM.Running -> return (file, tid)
 
                 -- This bit shouldn't happen, start one anyway.
-                Nothing -> (,) f `liftM` newThread manager f
+                Nothing -> (file,) <$> newThread manager file
                     
             -- Thread isn't registered yet, start one
-            Nothing -> (,) f `liftM` newThread manager f
+            Nothing -> (file,) <$> newThread manager file
         
         threadDelay globRate
         manageThreads manager new_threads

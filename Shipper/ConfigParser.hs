@@ -53,8 +53,9 @@ config = some segment <* eof
 -- Segments are built here, by applying the function parsed from beginSegment
 -- to the directives eaten within that segment. Simple! Sort of.
 segment :: GenParser Char st ConfigSegment
-segment = (spaces *> beginSegment)
-    <*> (spaces *> directives <* endSegment <* spaces)
+segment = ap 
+    (spaces *> beginSegment)
+    (spaces *> directives <* endSegment <* spaces)
 
 -- We try to see if this is a valid segment by parsing the word before a '{'
 beginSegment :: GenParser Char st ( [Directive] -> ConfigSegment )
@@ -72,8 +73,8 @@ directives = some directive
 
 -- We turn a = b & c into ("a", ["b", "c"])
 directive :: GenParser Char st Directive
-directive = fmap (,)
-    (spaces *> key <* spaces <* char '=') <*>
+directive = liftA2 (,)
+    (spaces *> key <* spaces <* char '=')
     (spaces *> values <* spaces)
 
 -- A key must not include any magic characters that mean things to values or
