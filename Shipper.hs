@@ -33,7 +33,7 @@ startShipper segments = do
     -- Do something useful for each input segment, we hand all inputs the same
     -- channel to stream events over
     forM_ inputSegments $ \(InputSegment i) -> case i of 
-        FileInput _ _ _ -> forkIO $ startFileInput in_ch i pollPeriod
+        FileInput _ _ -> forkIO $ startFileInput in_ch i pollPeriod
 
     -- Output segments however, each get thier own channel. This is so that
     -- inputs all block when any given output blocks. That way we don't leak

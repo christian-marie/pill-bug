@@ -3,6 +3,9 @@ module Shipper.Types (
     Input(..),
     Output(..),
     ConfigSegment(..),
+    ExtraInfo(..),
+    ExtraInfoPair,
+    Key
 )
 where
 
@@ -10,17 +13,23 @@ import qualified Data.ByteString.Char8 as B
 import Data.Time
 import Control.DeepSeq
 
+
 data Event = Event
     { message :: B.ByteString
-    , source  :: String
-    , tags    :: [String]
-    , tipe    :: String
+    , extra   :: [ExtraInfoPair]
     , time    :: UTCTime
     } deriving (Show)
 
+-- Theses represent things like tags and type attached to a log event.
+-- They will be converted to "@tags" : ["hai", "you"] and "@type" : "tipe"
+data ExtraInfo = ExtraString String | ExtraList [ExtraInfo]
+    deriving (Show)
+
+type ExtraInfoPair = (Key, ExtraInfo)
+type Key           = String
+
 data Input = FileInput
-    { fTags     :: [String]
-    , fType     :: String
+    { fExtra    :: [ExtraInfoPair]
     , filePaths :: [String] -- May be globs
     } deriving (Show)
 
@@ -35,7 +44,11 @@ instance NFData ConfigSegment where
      rnf (OutputSegment a) = a `deepseq` ()
 
 instance NFData Input where
-     rnf (FileInput a b c) = a `deepseq` b `deepseq` c `deepseq` ()
+     rnf (FileInput a b) = a `deepseq` b `deepseq` ()
+
+instance NFData ExtraInfo where
+     rnf (ExtraString a) = a `deepseq` ()
+     rnf (ExtraList a)   = a `deepseq` ()
 
 instance NFData Output where
      rnf Debug = ()

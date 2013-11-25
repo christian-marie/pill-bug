@@ -127,9 +127,7 @@ readThread ch FileInput{..} wait_time log_path =
         t <- getCurrentTime
         return Event
             {message = line
-            ,source  = log_path
-            ,tags    = fTags
-            ,tipe    = fType
+            ,extra   = fExtra
             ,time    = t
             }
 

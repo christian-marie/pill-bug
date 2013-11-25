@@ -4,14 +4,9 @@ module Shipper.ConfigParser (
 
 import Shipper.Types
 import Text.ParserCombinators.Parsec hiding ((<|>), many)
-import Data.Maybe (fromMaybe, listToMaybe)
 import Control.Monad
 import Control.Applicative
 import Control.DeepSeq
-
-type Key       = String
-type Value     = String
-type Directive = (Key, [Value])
 
 -- A simple parser for pill-bug configurations.
 --
@@ -31,25 +26,26 @@ parseConfig f = force `liftM` cfg
   where cfg = parseFromFile config f >>= either (error . show) return
 
 -- Create a file input segment, requires only 'path'
-fileInputSegment :: [Directive] -> ConfigSegment
-fileInputSegment ds = InputSegment FileInput
-    { fTags = tags'
-    , fType = tipe'
-    , filePaths = fp
+fileInputSegment :: [ExtraInfoPair] -> ConfigSegment
+fileInputSegment info = InputSegment FileInput
+    { filePaths = fp
+    , fExtra    = getExtras
     }
   where
-    tags' = want "tags" []
-    tipe' = fromMaybe "file" . listToMaybe $ want "type" ["file"]
-    fp    = need "paths"
+    getExtras = filter ((/="paths").fst) info
 
-    want k def = fromMaybe def $ lookup k ds 
+    fp = case lookup "paths" info of
+        Just v -> case v of
+            ExtraList l   -> map mustBeString l
+            ExtraString p -> [p]
+        Nothing -> error $ "File input expected 'paths' to be specified"
 
-    need k = case lookup k ds of
-        Just v  -> v
-        Nothing -> error $ "File input expected key: " ++ k
+    mustBeString (ExtraString s) = s
+    mustBeString _ = 
+        error "File input expected 'paths' to be a list or string"
 
 -- Create a debug output segment, requires no extra data
-debugOutputSegment :: [Directive] -> ConfigSegment
+debugOutputSegment :: [ExtraInfoPair] -> ConfigSegment
 debugOutputSegment _ = OutputSegment Debug {}
 
 -- A config is simply many unordered segments
@@ -64,25 +60,25 @@ segment = ap
     (spaces *> directives <* endSegment <* spaces)
 
 -- We try to see if this is a valid segment by parsing the word before a '{'
-beginSegment :: GenParser Char st ( [Directive] -> ConfigSegment )
+beginSegment :: GenParser Char st ( [ExtraInfoPair] -> ConfigSegment )
 beginSegment = possibleSegment <* spaces <* char '{' 
   where
     -- Any valid segments need to be defined here, returning function that
-    -- builds a ConfigSegment from a list of Directives
+    -- builds a ConfigSegment from a list of ExtraInfos
     possibleSegment = fileInputSegment   <$ string "file" <|>
                       debugOutputSegment <$ string "debug"
 
 endSegment :: GenParser Char st ()
 endSegment = void $ char '}'
 
-directives :: GenParser Char st [Directive]
+directives :: GenParser Char st [ExtraInfoPair]
 directives = many directive
 
 -- We turn a = b & c into ("a", ["b", "c"])
-directive :: GenParser Char st Directive
+directive :: GenParser Char st ExtraInfoPair
 directive = liftA2 (,)
     (spaces *> key <* spaces <* char '=')
-    (spaces *> values <* spaces)
+    (spaces *> extraInfo <* spaces)
 
 -- A key must not include any magic characters that mean things to values or
 -- segments as they are used as an anchor for values spanning multiple lines.
@@ -90,20 +86,22 @@ key :: GenParser Char st Key
 key = manyTill (noneOf "\r\n}'\"") (try . lookAhead $ equals)
   where equals = spaces <* char '='
 
-values :: GenParser Char st [Value]
-values = value `sepBy` separator
 
-value :: GenParser Char st Value
-value = spaces *> (
-        quotedString '"'
-        <|> quotedString '\''
-        <|> literalString
-    ) <* spaces
+extraInfo :: GenParser Char st ExtraInfo
+extraInfo = spaces *> ( extraList <|> extraString ) <* spaces
 
+extraList, extraString :: GenParser Char st ExtraInfo
+extraString = fmap ExtraString anyString
+extraList = fmap ExtraList $ 
+    char '[' *> extraInfo `sepBy` separator <* char ']'
+    
+
+anyString :: CharParser st String
+anyString = quotedString '"' <|> quotedString '\'' <|> literalString
 -- Literal strings are basically barewords, the only limitation being
 -- whitespace at the beginning/end of lines, double quotes and commas.
 literalString :: CharParser st String
-literalString = rstrip `liftM` (many $ noneOf ",\n\r'\"")
+literalString = strip `liftM` (many $ noneOf ",\n\r'\"[]")
     <?> "literal string"
 
 -- If you need whitespace at the beginning/end of lines, double quotes or
@@ -120,7 +118,7 @@ quotedString q = concat `liftM` do
 separator :: GenParser Char st ()
 separator = void $ char ','
 
-lstrip, rstrip:: String -> String
+lstrip, rstrip, strip:: String -> String
 lstrip s = case s of
                   [] -> []
                   (x:xs) -> if elem x " \t"
@@ -128,3 +126,4 @@ lstrip s = case s of
                             else s
 
 rstrip = reverse . lstrip . reverse
+strip = lstrip . rstrip
