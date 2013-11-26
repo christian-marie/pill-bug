@@ -28,8 +28,8 @@ pollPeriod = 100000 -- 100ms
 --
 -- 500, as we have the input queue + the output queue
 queueSize :: Int
---queueSize = 500
-queueSize = 1
+queueSize = 500
+--queueSize = 1
 
 
 startShipper :: [ConfigSegment] -> IO ()
@@ -51,8 +51,9 @@ startShipper segments = do
     out_chs <- forM outputSegments $ \(OutputSegment o) -> do 
         out_chan <- atomically $ newTBQueue queueSize
         case o of 
-            Debug -> forkIO $ startDebugOutput out_chan pollPeriod
-            ZMQ   -> forkIO $ startZMQOutput out_chan pollPeriod
+            Debug           -> forkIO $ startDebugOutput out_chan pollPeriod
+            ZMQ             -> forkIO $ startZMQOutput out_chan pollPeriod
+            Redis _ _ _ _ _ -> forkIO $ startRedisOutput out_chan pollPeriod o
         return out_chan
 
     forever $ do

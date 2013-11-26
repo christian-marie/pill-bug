@@ -16,13 +16,14 @@ import Data.MessagePack
 import Blaze.ByteString.Builder
 import Data.Monoid (mconcat, mappend, Monoid)
 import Data.Bits
+import Database.Redis
 
 data Event =
     UnpackedEvent
-        { message :: B.ByteString
-        , extra   :: [ExtraInfoPair]
-        , time    :: UTCTime
-        } 
+    { message :: B.ByteString
+    , extra   :: [ExtraInfoPair]
+    , time    :: UTCTime
+    } 
     | PackedEvent B.ByteString
     deriving (Show)
 
@@ -84,7 +85,8 @@ fromMap lf pf m =
 
 -- Theses represent things like tags and type attached to a log event.
 -- They will be converted to "@tags" : ["hai", "you"] and "@type" : "tipe"
-data ExtraInfo = ExtraString String 
+data ExtraInfo =
+      ExtraString String 
     | ExtraList [ExtraInfo] 
     | ExtraMap [(Key, ExtraInfo)]
     deriving (Show)
@@ -97,12 +99,25 @@ data Input = FileInput
     , filePaths :: [String] -- May be globs
     } deriving (Show)
 
-data Output = Debug | ZMQ
+data Output =
+      Debug
+    | ZMQ
+    | Redis
+    { rHosts   :: [HostName]
+    , rPort    :: PortID
+    , rAuth    :: Maybe B.ByteString
+    , rKey     :: B.ByteString
+    , rTimeout :: Int
+    }
+
+
     deriving (Show)
 
 data ConfigSegment = InputSegment Input | OutputSegment Output
     deriving (Show)
 
+-- We want to deepseq the config before it is handed back to the shipper to
+-- make use of. Don't want to fail when it's actually used.
 instance NFData ConfigSegment where
      rnf (InputSegment a)  = a `deepseq` ()
      rnf (OutputSegment a) = a `deepseq` ()
@@ -118,3 +133,7 @@ instance NFData ExtraInfo where
 instance NFData Output where
      rnf Debug = ()
      rnf ZMQ = ()
+     -- Have to just `seq` PortID as it has no NFData instance
+     rnf (Redis a c b d e) = 
+        a `deepseq` b `deepseq` c `seq` d `deepseq` e `deepseq` () 
+

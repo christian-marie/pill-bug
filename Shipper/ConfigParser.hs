@@ -7,6 +7,8 @@ import Text.ParserCombinators.Parsec hiding ((<|>), many)
 import Control.Monad
 import Control.Applicative
 import Control.DeepSeq
+import qualified Data.ByteString.Char8 as B
+import Database.Redis (PortID(PortNumber))
 
 -- A simple parser for pill-bug configurations.
 --
@@ -29,17 +31,18 @@ parseConfig f = force `liftM` cfg
 
 -- Create a file input segment, requires only 'path'
 fileInputSegment :: [ExtraInfoPair] -> ConfigSegment
-fileInputSegment info = InputSegment FileInput
+fileInputSegment infos = InputSegment FileInput
     { filePaths = fp
     , fExtra    = getExtras
     }
   where
-    getExtras = filter ((/="paths") . fst) info
+    getExtras = filter ((/="paths") . fst) infos
 
-    fp = case lookup "paths" info of
+    fp = case lookup "paths" infos of
         Just v -> case v of
             ExtraList l   -> map mustBeString l
             ExtraString p -> [p]
+            _ -> error "File input wanted list or string as 'path'"
         Nothing -> error $ "File input expected 'paths' to be specified"
 
     mustBeString (ExtraString s) = s
@@ -54,6 +57,60 @@ debugOutputSegment _ = OutputSegment Debug {}
 zmqOutputSegment :: [ExtraInfoPair] -> ConfigSegment
 zmqOutputSegment _ = OutputSegment ZMQ {}
 
+-- Create a Redis output segment, requires no extra data
+redisOutputSegment :: [ExtraInfoPair] -> ConfigSegment
+redisOutputSegment infos = OutputSegment Redis
+    { rHosts   = getHost
+    , rPort    = getPort
+    , rAuth    = getAuth
+    , rKey     = getKey
+    , rTimeout = getTimeout
+    }
+  where
+    getHost = case lookup "hosts" infos of
+        Just v -> case v of
+            ExtraString s -> [s]
+            ExtraList l   -> map onlyString l
+            _ -> error "Redis output wanted list or string as 'hosts'"
+        Nothing -> error "Redis output expected 'hosts' to be specified"
+      where 
+        onlyString e = case e of
+            ExtraString s -> s
+            _ -> error "Redis output wanted a list of strings as 'host'"
+
+    getTimeout = case lookup "timeout" infos of
+        Just v -> case v of
+            ExtraString s ->
+                let r = reads s :: [(Double, String)] in
+                    if null r then error $ "Invalid redis timeout: " ++ s
+                              else round $ (fst . head) r * 1000000
+            _ -> error "Redis output wanted a string as 'timeout'"
+        Nothing -> 1000000
+                
+
+    -- No, you cannot currently specify a different port for each host
+    getPort = case lookup "port" infos of
+        Just v -> case v of
+            ExtraString s ->
+                let r = reads s :: [(Int, String)] in
+                if null r then error $ "Invalid redis output port: " ++ s
+                          else PortNumber $ (fromIntegral . fst . head) r
+            _   -> error "Redis output wanted 'port' as a string"
+        Nothing -> defaultPort
+
+    getAuth = case lookup "auth" infos of
+        Just v -> case v of
+            ExtraString s -> Just $ B.pack s
+            _ -> error "Redis output wanted 'auth' as a string"
+        Nothing -> Nothing
+
+    getKey = case lookup "key" infos of
+        Just v -> case v of
+            ExtraString s -> B.pack s
+            _ -> error "Redis output wanted 'key' as a string"
+        Nothing -> error "Redis output expected 'key' to be specified"
+
+    defaultPort = PortNumber 6379
 
 -- A config is zero or more segments
 config :: GenParser Char st [ConfigSegment]
@@ -75,6 +132,7 @@ beginSegment = possibleSegment <* spaces <* char '{'
     possibleSegment =     fileInputSegment   <$ string "file" 
                       <|> debugOutputSegment <$ string "debug"
                       <|> zmqOutputSegment   <$ string "zmq"
+                      <|> redisOutputSegment <$ string "redis"
 
 endSegment :: GenParser Char st ()
 endSegment = void $ char '}'
