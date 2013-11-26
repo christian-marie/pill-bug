@@ -11,7 +11,7 @@ import Control.DeepSeq
 -- A simple parser for pill-bug configurations.
 --
 -- Configurations take the form of segments with many key, values pairs.
--- That is, one key and one ore more values.
+-- That is, one key and one or more values.
 --
 -- For example:
 -- 
@@ -20,6 +20,7 @@ import Control.DeepSeq
 -- 	yay = [this works, 'i am a list']
 -- 	other = "just a string"
 -- 	nested = [a nested list:, [with a list,[]]]
+-- 	map = {key = value}
 -- }
 
 parseConfig :: FilePath -> IO [ConfigSegment]
@@ -95,11 +96,11 @@ key = manyTill (noneOf "\r\n}'\"") (try . lookAhead $ equals)
 
 
 -- A key may have a list or string, that list may have lists, and that list
--- lists and so ad infinitum.
+-- lists and so ad infinitum. Also maps may recurse.
 extraInfo :: GenParser Char st ExtraInfo
-extraInfo = spaces *> ( extraList <|> extraString ) <* spaces
+extraInfo = spaces *> (extraMap <|> extraList <|> extraString) <* spaces
 
-extraList, extraString :: GenParser Char st ExtraInfo
+extraList, extraString, extraMap :: GenParser Char st ExtraInfo
 
 -- Strings are just wrapped strings
 extraString = fmap ExtraString anyString
@@ -107,6 +108,10 @@ extraString = fmap ExtraString anyString
 -- A list is denoted by [, this is convenient for not backtracking.
 extraList = fmap ExtraList $ 
     char '[' *> extraInfo `sepBy` separator <* char ']'
+
+-- A map is a nested set of directives.
+extraMap = fmap ExtraMap $ 
+    char '{' *> directive `sepBy` separator <* char '}'
 
 anyString :: CharParser st String
 anyString = quotedString '"' <|> quotedString '\'' <|> literalString

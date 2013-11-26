@@ -125,7 +125,7 @@ readThread ch FileInput{..} wait_time log_path =
     buildEvent :: B.ByteString -> IO Event
     buildEvent line = do
         t <- getCurrentTime
-        return Event
+        return UnpackedEvent
             {message = line
             ,extra   = fExtra
             ,time    = t
