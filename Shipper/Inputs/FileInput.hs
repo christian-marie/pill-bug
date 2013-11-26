@@ -29,7 +29,7 @@ rotationWait = 3000000 -- 3 seconds
 
 -- How often to re-evaluate globs and check on the health of all threads
 globRate :: Int
-globRate = 1000000
+globRate = 10000000
 
 startFileInput :: TBQueue Event -> Input -> Int -> IO ()
 startFileInput ch input@FileInput{..} wait_time = do
@@ -40,7 +40,7 @@ startFileInput ch input@FileInput{..} wait_time = do
     -- healthy thread running.
     manageThreads :: TM.ThreadManager -> [(FilePath, ThreadId)] -> IO ()
     manageThreads manager threads = do
-        files <- expandGlobs filePaths
+        files <- concat <$> mapM expandGlobs filePaths
 
         -- This gets a bit unreadable here, but bear with me:
         -- For each globbed file, we check if there is a thread registered
@@ -75,14 +75,18 @@ startFileInput ch input@FileInput{..} wait_time = do
     newThread manager file = TM.fork manager $
         readThread ch input wait_time file
 
--- Take a list of globs like [ "/tmp/*.log", "/actual_file" ] and expand them
+-- Take a single glob and expand it to all matches. We have to do globs one at
+-- a time for efficiency as they don't always have the same common directory.
 -- We also filter out all non-files, such as directories. This is so that you
 -- can use a glob like /var/log/*
 --
 -- Not that it's a good idea.
-expandGlobs :: [FilePath] -> IO [FilePath]
-expandGlobs fps = filterM doesFileExist =<< allMatches
-  where allMatches = (concat . fst) `liftM` globDir (map compile fps) "/"
+expandGlobs :: FilePath -> IO [FilePath]
+expandGlobs fp = filterM doesFileExist =<< allMatches
+  where
+    pattern = compile fp
+    dir = (fst . commonDirectory) pattern
+    allMatches = (concat . fst) <$> globDir [pattern] dir
 
 -- Start the log watching process by opening the file and seeking to end.
 readThread ::  TBQueue Event -> Input -> Int -> FilePath -> IO ()
