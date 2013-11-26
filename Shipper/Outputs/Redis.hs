@@ -38,25 +38,22 @@ startRedisOutput ch poll_period Redis{..} = loop rHosts
     -- Select the next host in our list for the next try
     shuffle h = last h : init h
 
-    send es host
-        -- Sending no events is easy!
-        | null es = return ()
-        -- Otherwise we have to roll our own timeout :(
-        | otherwise = do
-            t <- timeout rTimeout $ do
-                conn <- connect $ connectionInfo host
-                runRedis conn $ do
-                    -- We don't use pack here as that would give us a lazy
-                    -- bytestring, which we'd have to convert to strict to pass
-                    -- to rpush. This would be a massive fail.
-                    reply <- rpush rKey $ map (toByteString . MP.from) es
-                    case reply of
-                        Left r -> error $ 
-                            "Failed to rpush to " ++ host ++ ": "++ show r
-                        _ -> return ()
-            case t of
-                Just v -> return v
-                Nothing -> error $ "Timeout connecting to " ++ host
+    send [] _    = return () -- Sending no events is easy!
+    send es host = do
+        t <- timeout rTimeout $ do
+            conn <- connect $ connectionInfo host
+            runRedis conn $ do
+                -- We don't use pack here as that would give us a lazy
+                -- bytestring, which we'd have to convert to strict to pass
+                -- to rpush. This would be a massive fail.
+                reply <- rpush rKey $ map (toByteString . MP.from) es
+                case reply of
+                    Left r -> error $ 
+                        "Failed to rpush to " ++ host ++ ": "++ show r
+                    _ -> return ()
+        case t of
+            Just v -> return v
+            Nothing -> error $ "Timeout connecting to " ++ host
 
     connectionInfo host = ConnInfo
         { connectHost           = host
