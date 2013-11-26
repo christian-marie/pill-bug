@@ -14,6 +14,7 @@ import Control.Concurrent.STM.TBQueue
 import Control.Concurrent
 import Control.Monad 
 
+-- How long inputs must sleep when there is no more input to read
 waitTime :: Int
 waitTime = 1000000 -- 1s
 
@@ -42,8 +43,8 @@ startShipper segments = do
     out_chs <- forM outputSegments $ \(OutputSegment o) -> do 
         out_chan <- atomically $ newTBQueue queueSize
         case o of 
-            Debug           -> forkIO $ startDebugOutput out_chan waitTime
-            ZMQ             -> forkIO $ startZMQOutput out_chan waitTime
+            Debug           -> forkIO $ startDebugOutput out_chan 
+            ZMQ             -> forkIO $ startZMQOutput out_chan 
             Redis _ _ _ _ _ -> forkIO $ startRedisOutput out_chan waitTime o
         return out_chan
 

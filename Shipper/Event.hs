@@ -29,7 +29,12 @@ readAllEvents = readAllEvents' maxPacketSize
     readAllEvents' current_size ch = do
         me <- atomically $ tryReadTBQueue ch
         case me of
-            Nothing -> return []
+            Nothing -> do
+                let s = (maxPacketSize - current_size)
+                if s /= 0 then do
+                    print $ "Packet size: " ++ show s 
+                    return []
+                else return []
             Just e -> do
                 -- This allows other (read: input) threads control over
                 -- execution, which, worst case scenario is handed off to
