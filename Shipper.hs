@@ -8,28 +8,19 @@ module Shipper (
 import Shipper.Inputs
 import Shipper.Outputs
 import Shipper.Types
-import Shipper.Event(readAllEvents)
 
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TBQueue 
 import Control.Concurrent
 import Control.Monad 
 
-
-pollPeriod :: Int
-pollPeriod = 100000 -- 100ms
+waitTime :: Int
+waitTime = 1000000 -- 1s
 
 -- Test with a small queue size to uncover race conditions
--- In production, we can never send more than queueSize events per pollPeriod
--- as the outputs attempt to flush the queue completely every pollPeriod.
---
--- So, for a cap of 1000 events per second (bottlenecked at outputs),
--- we have a queue size of 500 and a pollPeriod of 100000 (100ms)
---
--- 500, as we have the input queue + the output queue
 queueSize :: Int
-queueSize = 500
---queueSize = 1
+--queueSize = 16
+queueSize = 1
 
 
 startShipper :: [ConfigSegment] -> IO ()
@@ -43,7 +34,7 @@ startShipper segments = do
     -- Do something useful for each input segment, we hand all inputs the same
     -- channel to stream events over
     forM_ inputSegments $ \(InputSegment i) -> case i of 
-        FileInput _ _ -> forkIO $ startFileInput in_ch i pollPeriod
+        FileInput _ _ -> forkIO $ startFileInput in_ch i waitTime
 
     -- Output segments however, each get thier own channel. This is so that
     -- inputs all block when any given output blocks. That way we don't leak
@@ -51,9 +42,9 @@ startShipper segments = do
     out_chs <- forM outputSegments $ \(OutputSegment o) -> do 
         out_chan <- atomically $ newTBQueue queueSize
         case o of 
-            Debug           -> forkIO $ startDebugOutput out_chan pollPeriod
-            ZMQ             -> forkIO $ startZMQOutput out_chan pollPeriod
-            Redis _ _ _ _ _ -> forkIO $ startRedisOutput out_chan pollPeriod o
+            Debug           -> forkIO $ startDebugOutput out_chan waitTime
+            ZMQ             -> forkIO $ startZMQOutput out_chan waitTime
+            Redis _ _ _ _ _ -> forkIO $ startRedisOutput out_chan waitTime o
         return out_chan
 
     forever $ do
@@ -61,11 +52,9 @@ startShipper segments = do
         -- channel. This way, if an output gets clogged we can block all the
         -- way back to every input magically, and no output should get more
         -- than one event more than another.
-        events <- atomically $ readAllEvents in_ch
-        forM_ events $ \e -> 
-            forM_ out_chs $ \ch -> atomically $ writeTBQueue ch e
+        event <- atomically $ readTBQueue in_ch
+        forM_ out_chs $ \ch -> atomically $ writeTBQueue ch event
 
-        threadDelay pollPeriod
   where
     isInputSegment (InputSegment _) = True
     isInputSegment _                = False

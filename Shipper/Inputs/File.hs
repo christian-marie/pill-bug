@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, RecordWildCards, ScopedTypeVariables,
              TupleSections #-}
-module Shipper.Inputs.FileInput (startFileInput) where
+module Shipper.Inputs.File (startFileInput) where
 
 import Shipper.Types
 import Control.Concurrent.STM (atomically)
@@ -118,18 +118,18 @@ readThread ch FileInput{..} wait_time log_path =
             -- Continue reading from beginning of new file
             withFile log_path ReadMode $ \newh -> readLog newh inode 
         else do 
-            -- During normal operation, just emit events, sleep and try again
+            -- During normal operation, just emit events
             emitFrom h
-            threadDelay wait_time
             readLog h inode
  
     -- Read some bytes from the handle, splitting them into lines, building
     -- events from those lines and then handing them off to the shipper.
     emitFrom :: Handle -> IO ()
-    emitFrom h =
-        B.lines `liftM` B.hGetSome h chunkSize 
-        >>= mapM buildEvent
-        >>= mapM_ (atomically . writeTBQueue ch)
+    emitFrom h = do
+        ls <- B.lines `liftM` B.hGetSome h chunkSize 
+        if null ls 
+        then threadDelay wait_time
+        else mapM buildEvent ls >>= mapM_ (atomically . writeTBQueue ch)
 
     -- Tack on the time at the moment that the event is packaged up
     buildEvent :: B.ByteString -> IO Event

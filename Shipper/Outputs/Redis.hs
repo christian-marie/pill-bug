@@ -3,7 +3,6 @@ module Shipper.Outputs.Redis (startRedisOutput) where
 
 import Shipper.Types
 import Shipper.Event(readAllEvents)
-import Control.Concurrent.STM (atomically)
 import Control.Concurrent
 import Control.Concurrent.STM.TBQueue
 import Data.MessagePack as MP
@@ -18,35 +17,31 @@ startRedisOutput ch poll_period Redis{..} = loop rHosts
     -- During normal operation, we simply loop through all of our hosts,
     -- sending a block of events to each in turn.
     loop hosts = do
-        events <- atomically $ readAllEvents ch
-        (send events $ head hosts) `catch` (recover events $ shuffle hosts)
-        threadDelay poll_period
-        loop $ shuffle hosts
+        events <- readAllEvents ch
+        trySend events hosts
     
     -- On failure, we keep trying to send that one block of events, clogging
     -- everyone's tubes up until we can transmit them.
     recover events hosts err = do
-        threadDelay poll_period
+        putStrLn $ "Retrying send of " ++ (show . length) events ++ 
+                   " events after redis push: " ++ show (err :: SomeException)
+        threadDelay poll_period 
+        trySend events hosts
 
-        let explanation = show (err :: SomeException) in
-            putStrLn $ "Retrying send of " ++ (show . length) events ++ 
-                       " events due to failed redis push: " ++ explanation
-
+    trySend events hosts = do
         (send events $ head hosts) `catch` (recover events $ shuffle hosts)
         loop $ shuffle hosts
+      where shuffle h = last h : init h
 
-    -- Select the next host in our list for the next try
-    shuffle h = last h : init h
-
-    send [] _    = return () -- Sending no events is easy!
-    send es host = do
+    send [] _        = threadDelay poll_period -- Sending no events is easy!
+    send events host = do
         t <- timeout rTimeout $ do
             conn <- connect $ connectionInfo host
             runRedis conn $ do
                 -- We don't use pack here as that would give us a lazy
                 -- bytestring, which we'd have to convert to strict to pass
                 -- to rpush. This would be a massive fail.
-                reply <- rpush rKey $ map (toByteString . MP.from) es
+                reply <- rpush rKey $ map (toByteString . MP.from) events
                 case reply of
                     Left r -> error $ 
                         "Failed to rpush to " ++ host ++ ": "++ show r

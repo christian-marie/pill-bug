@@ -2,4 +2,4 @@ module Shipper.Inputs (
     startFileInput,
 ) where
 
-import Shipper.Inputs.FileInput
+import Shipper.Inputs.File

@@ -12,7 +12,7 @@ import qualified Data.ByteString.Lazy as B
 -- Output to 0MQ, compressing with lz4 and encrypting 
 startZMQOutput :: TBQueue Event -> Int -> IO ()
 startZMQOutput ch poll_period = do
-    events <- atomically $ readAllEvents ch
+    events <- readAllEvents ch
         
     send events
 
