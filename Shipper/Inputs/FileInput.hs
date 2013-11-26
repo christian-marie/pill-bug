@@ -28,8 +28,11 @@ rotationWait :: Int
 rotationWait = 3000000 -- 3 seconds
 
 -- How often to re-evaluate globs and check on the health of all threads
+--
+-- Globbing is actually surprisingly expensive, so I've dropped this down to 10
+-- seconds.
 globRate :: Int
-globRate = 10000000
+globRate = 10000000 -- 10 seconds
 
 startFileInput :: TBQueue Event -> Input -> Int -> IO ()
 startFileInput ch input@FileInput{..} wait_time = do

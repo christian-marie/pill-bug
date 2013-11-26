@@ -17,11 +17,20 @@ import Control.Monad
 
 
 pollPeriod :: Int
-pollPeriod = 1000000
+pollPeriod = 100000 -- 100ms
 
 -- Test with a small queue size to uncover race conditions
+-- In production, we can never send more than queueSize events per pollPeriod
+-- as the outputs attempt to flush the queue completely every pollPeriod.
+--
+-- So, for a cap of 1000 events per second (bottlenecked at outputs),
+-- we have a queue size of 500 and a pollPeriod of 100000 (100ms)
+--
+-- 500, as we have the input queue + the output queue
 queueSize :: Int
+--queueSize = 500
 queueSize = 1
+
 
 startShipper :: [ConfigSegment] -> IO ()
 startShipper segments = do
