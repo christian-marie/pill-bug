@@ -82,7 +82,10 @@ startFileInput ch input@FileInput{..} wait_time = do
 --
 -- Not that it's a good idea.
 expandGlobs :: FilePath -> IO [FilePath]
-expandGlobs fp = filterM doesFileExist =<< allMatches
+expandGlobs fp = do
+    exists <- doesFileExist fp
+    if exists then return [fp]
+              else filterM doesFileExist =<< allMatches
   where
     pattern = compile fp
     dir = (fst . commonDirectory) pattern
