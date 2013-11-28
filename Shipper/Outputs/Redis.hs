@@ -31,7 +31,7 @@ startRedisOutput ch poll_period Redis{..} = loop rHosts
     trySend events hosts = do
         (send events $ head hosts) `catch` (recover events $ shuffle hosts)
         loop $ shuffle hosts
-      where shuffle h = last h : init h
+      where shuffle hs = last hs : init hs
 
     send [] _        = threadDelay poll_period -- Sending no events is easy!
     send events host = do
