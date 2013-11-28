@@ -176,7 +176,7 @@ anyString = quotedString '"' <|> quotedString '\'' <|> literalString
 -- Literal strings are basically barewords, the only limitation being
 -- whitespace at the beginning/end of lines, double quotes and commas.
 literalString :: CharParser st String
-literalString = strip `liftM` (many $ noneOf ",\n\r'\"[]")
+literalString = strip `liftM` (many $ noneOf ",\n\r'\"[]}")
     <?> "literal string"
 
 -- If you need whitespace at the beginning/end of lines, double quotes or

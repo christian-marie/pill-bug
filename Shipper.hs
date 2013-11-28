@@ -8,6 +8,7 @@ module Shipper (
 import Shipper.Inputs
 import Shipper.Outputs
 import Shipper.Types
+import Shipper.Event (maxPacketSize)
 
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TBQueue 
@@ -18,10 +19,8 @@ import Control.Monad
 waitTime :: Int
 waitTime = 1000000 -- 1s
 
--- Test with a small queue size to uncover race conditions
 queueSize :: Int
---queueSize = 16
-queueSize = 1
+queueSize = maxPacketSize
 
 
 startShipper :: [ConfigSegment] -> IO ()
@@ -43,8 +42,8 @@ startShipper segments = do
     out_chs <- forM outputSegments $ \(OutputSegment o) -> do 
         out_chan <- atomically $ newTBQueue queueSize
         case o of 
-            Debug           -> forkIO $ startDebugOutput out_chan 
-            ZMQ             -> forkIO $ startZMQOutput out_chan 
+            Debug           -> forkIO $ startDebugOutput out_chan waitTime
+            ZMQ             -> forkIO $ undefined
             Redis _ _ _ _ _ -> forkIO $ startRedisOutput out_chan waitTime o
         return out_chan
 
