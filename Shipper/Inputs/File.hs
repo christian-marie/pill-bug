@@ -6,7 +6,6 @@ import Shipper.Types
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TBQueue
 import Control.Concurrent
-import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString as B
 import System.IO 
 import Control.Exception
@@ -19,11 +18,6 @@ import System.FilePath.Glob
 import System.Directory (doesFileExist)
 import Data.Time.RFC3339
 import qualified Control.Concurrent.ThreadManager as TM
-
--- How much data to try to read at a time.
-chunkSize :: Int
-chunkSize = 1048576 -- 1MB
-
 -- How long to keep reading a file after it is rotated.
 rotationWait :: Int
 rotationWait = 3000000 -- 3 seconds
@@ -121,16 +115,24 @@ readThread ch FileInput{..} wait_time log_path =
         else do 
             -- During normal operation, just emit events
             emitFrom h
+            threadDelay wait_time
             readLog h inode
  
-    -- Read some bytes from the handle, splitting them into lines, building
-    -- events from those lines and then handing them off to the shipper.
+    -- This used to read events in large chunks, it's been simplified to get
+    -- one line at a time. This seems a lot more robust and a lot better on
+    -- memory. It is a lot slower though.
+    --
+    -- It's plenty fast enough for any sane log souce though. If that ever
+    -- prooves to be false, we can look into io-streams or pipes
     emitFrom :: Handle -> IO ()
     emitFrom h = do
-        ls <- B.lines `liftM` B.hGetSome h chunkSize 
-        if null ls 
-        then threadDelay wait_time
-        else mapM buildEvent ls >>= mapM_ (atomically . writeTBQueue ch)
+        eof <- hIsEOF h
+        if eof then
+            return ()
+        else do
+            e <- B.hGetLine h >>= buildEvent
+            atomically $ writeTBQueue ch e
+            emitFrom h
 
     -- Tack on the time at the moment that the event is packaged up
     buildEvent :: B.ByteString -> IO Event
