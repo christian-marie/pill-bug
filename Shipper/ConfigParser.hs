@@ -54,7 +54,31 @@ debugOutputSegment _ = OutputSegment Debug {}
 
 -- Create a ZMQ4 output segment, requires no extra data
 zmq4OutputSegment :: [ExtraInfoPair] -> ConfigSegment
-zmq4OutputSegment _ = OutputSegment ZMQ4Output {}
+zmq4OutputSegment infos = OutputSegment ZMQ4Output
+    { zoServers = getHost
+    , zoTimeout = getTimeout
+    }
+  where
+    getHost = case lookup "servers" infos of
+        Just v -> case v of
+            ExtraString s -> [s]
+            ExtraList l   -> map onlyString l
+            _ -> error "ZMQ4 output wanted list or string as 'servers'"
+        Nothing -> error "ZMQ4 output expected 'servers' to be specified"
+      where 
+        onlyString e = case e of
+            ExtraString s -> s
+            _ -> error "ZMQ4 output wanted a list of strings as 'servers'"
+
+    getTimeout = case lookup "timeout" infos of
+        Just v -> case v of
+            ExtraString s ->
+                let r = reads s :: [(Double, String)] in
+                    if null r then error $ "Invalid ZMQ timeout: " ++ s
+                              else round $ (fst . head) r * 1000
+            _ -> error "ZMQ4 output wanted a string as 'timeout'"
+        Nothing -> 1000
+       
 
 -- Create a ZMQ4 input segment, requires no extra data
 zmq4InputSegment :: [ExtraInfoPair] -> ConfigSegment

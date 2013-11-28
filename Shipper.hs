@@ -44,7 +44,7 @@ startShipper segments = do
         out_chan <- atomically $ newTBQueue queueSize
         case o of 
             Debug           -> forkIO $ startDebugOutput out_chan waitTime
-            ZMQ4Output           -> forkIO $ startZMQ4Output  out_chan waitTime o
+            ZMQ4Output _ _  -> forkIO $ startZMQ4Output  out_chan waitTime o
             Redis _ _ _ _ _ -> forkIO $ startRedisOutput out_chan waitTime o
         return out_chan
 

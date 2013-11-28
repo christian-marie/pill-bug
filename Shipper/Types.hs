@@ -18,6 +18,7 @@ import Blaze.ByteString.Builder
 import Data.Monoid (mconcat, mappend, Monoid)
 import Data.Bits
 import Database.Redis
+import System.ZMQ4 (Timeout)
 
 data Event =
     UnpackedEvent
@@ -107,6 +108,9 @@ data Input = FileInput
 data Output =
       Debug
     | ZMQ4Output
+    { zoServers :: [String]
+    , zoTimeout :: Timeout
+    }
     | Redis
     { rHosts   :: [HostName]
     , rPort    :: PortID
@@ -135,8 +139,8 @@ instance NFData ExtraInfo where
      rnf (ExtraMap as)   = as `deepseq` ()
 
 instance NFData Output where
+     rnf (ZMQ4Output a b) = a `deepseq` b `deepseq` ()
      rnf Debug = ()
-     rnf ZMQ4Output = ()
      -- Have to just `seq` PortID as it has no NFData instance
      rnf (Redis a c b d e) = 
         a `deepseq` b `deepseq` c `seq` d `deepseq` e `deepseq` () 
