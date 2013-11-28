@@ -11,20 +11,20 @@ where
 
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LB
-import Data.Time
 import Control.DeepSeq
 import Data.MessagePack 
 import Blaze.ByteString.Builder
 import Data.Monoid (mconcat, mappend, Monoid)
 import Data.Bits
-import Database.Redis
+import Database.Redis (HostName, PortID)
 import System.ZMQ4 (Timeout)
+import Data.Monoid ((<>))
 
 data Event =
     UnpackedEvent
     { message :: B.ByteString
     , extra   :: [ExtraInfoPair]
-    , time    :: UTCTime
+    , time    :: String
     } 
     | PackedEvent LB.ByteString
     deriving (Show)
@@ -51,13 +51,16 @@ instance Packable Event where
         --
         -- TODO: Date as a float
         --
-        allKV e = [ from "message" `mappend` from (message e) ]
+        allKV e = 
+            [ from "message" `mappend` from (message e)
+            , from "@timestamp" `mappend` from (time e)
+            , from "@version" `mappend` from "1" ]
                 ++ map extractKV (validExtras e)
         -- We obviously cannot attach "message" then.
         validExtras e  = filter ((/="message") . fst) (extra e)
-        -- The overall length is thesefore, all of the root elements + 2
-        -- (message and date)
-        eventLen      = (+1).length.extra -- 1 for now as there is no date
+        -- The overall length is thesefore, all of the root elements + 3
+        -- (message, date and version)
+        eventLen      = (+3).length.extra
 
 -- We must make this info packable in of itself as it needs to be able to
 -- recurse in the event of a nested array or map
@@ -65,14 +68,10 @@ instance Packable ExtraInfo where
     from (ExtraString s) = from s
     from (ExtraList l)   = from l
     from (ExtraMap kvs) = fromMap length (mconcat . map extractKV) kvs 
-        
-
 
 -- Pulled from Data.MessagePack.
 -- TODO: request that this is exposed as it is useful and we shouldn't have to
 --       steal it
-(<>) :: Monoid m => m -> m -> m
-(<>) = mappend
 
 fromMap :: (a -> Int) -> (a -> Builder) -> a -> Builder
 fromMap lf pf m =

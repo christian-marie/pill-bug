@@ -14,9 +14,10 @@ import Control.Monad
 import Control.Applicative
 import System.Posix.Files
 import System.Posix.Types (FileID)
-import Data.Time
+import Data.Time.LocalTime
 import System.FilePath.Glob
 import System.Directory (doesFileExist)
+import Data.Time.RFC3339
 import qualified Control.Concurrent.ThreadManager as TM
 
 -- How much data to try to read at a time.
@@ -134,7 +135,7 @@ readThread ch FileInput{..} wait_time log_path =
     -- Tack on the time at the moment that the event is packaged up
     buildEvent :: B.ByteString -> IO Event
     buildEvent line = do
-        t <- getCurrentTime
+        t <- showRFC3339 <$> getZonedTime
         return UnpackedEvent
             {message = line
             ,extra   = fExtra
