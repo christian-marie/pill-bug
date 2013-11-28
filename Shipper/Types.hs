@@ -103,6 +103,7 @@ data Input = FileInput
     , filePaths :: [String] -- May be globs
     }
     | ZMQ4Input
+    { ziBind :: String }
     deriving (Show)
 
 data Output =
@@ -131,7 +132,7 @@ instance NFData ConfigSegment where
 
 instance NFData Input where
      rnf (FileInput a b) = a `deepseq` b `deepseq` ()
-     rnf ZMQ4Input = ()
+     rnf (ZMQ4Input a) = a `deepseq` ()
 
 instance NFData ExtraInfo where
      rnf (ExtraString a) = a `deepseq` ()

@@ -82,7 +82,15 @@ zmq4OutputSegment infos = OutputSegment ZMQ4Output
 
 -- Create a ZMQ4 input segment, requires no extra data
 zmq4InputSegment :: [ExtraInfoPair] -> ConfigSegment
-zmq4InputSegment _ = InputSegment ZMQ4Input {}
+zmq4InputSegment infos = InputSegment ZMQ4Input
+    { ziBind = getBind }
+  where
+    getBind = case lookup "bind" infos of
+        Just v -> case v of
+            ExtraString s -> s
+            _ -> error "ZMQ input expected 'bind' to be a string"
+        Nothing -> error "ZMQ input expected 'bind' to be specified, " ++
+            "try something like 'tcp://*:1234'"
 
 -- Create a Redis output segment, requires no extra data
 redisOutputSegment :: [ExtraInfoPair] -> ConfigSegment

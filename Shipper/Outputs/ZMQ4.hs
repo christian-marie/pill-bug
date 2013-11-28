@@ -62,7 +62,7 @@ startZMQ4Output ch wait_time Types.ZMQ4Output{..} = loop zoServers
             if (null . head) res then recover server servers payload zoTimeout 
                                  else void $ receive s
 
-        -- Exponential backoff up to 60 seconds whilst shuffling through
+        -- Exponential backoff up to 30 seconds whilst shuffling through
         -- avaliable servers. If a server replies, we carry on with that one
         -- from now on.
         --
@@ -76,7 +76,7 @@ startZMQ4Output ch wait_time Types.ZMQ4Output{..} = loop zoServers
         -- real benifit, maybe implement:
         -- http://zguide.zeromq.org/php:chapter4#Model-Three-Complex-and-Nasty
         recover failed servers' payload timeout = do
-                liftIO $ putStrLn $ "ZMQ timeout transmitting to: " ++ failed
+                liftIO $ putStrLn $ "ZMQ timeout transmitting to " ++ failed
 
                 let shuffled = shuffle servers'
                 let server  = head shuffled
@@ -86,7 +86,7 @@ startZMQ4Output ch wait_time Types.ZMQ4Output{..} = loop zoServers
 
                 res <- poll timeout [Sock s [In] Nothing] 
                 if (null . head) res then
-                    recover server shuffled payload $ min (timeout * 2) 60000
+                    recover server shuffled payload $ min (timeout * 2) 30000
                 else
                     void $ receive s
 

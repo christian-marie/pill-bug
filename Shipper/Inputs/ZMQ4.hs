@@ -7,19 +7,21 @@ import Control.Monad
 import Data.MessagePack as MP
 import System.ZMQ4.Monadic
 import Control.Exception
+import Control.Concurrent
 import qualified Data.ByteString as B
 
 startZMQ4Input :: TBQueue Types.Event -> Types.Input -> Int -> IO ()
-startZMQ4Input ch Types.ZMQ4Input{..} _ = forever $ do
+startZMQ4Input ch Types.ZMQ4Input{..} wait_time = forever $ do
     runZMQ $ do
         s <- socket Rep
-        bind s "tcp://*:5555"
+        bind s ziBind
         forever $ do
             payload <- receive s
             liftIO $ emit $ decode payload
             send s [] B.empty
     `catch` \e -> do
         putStrLn $ "ZMQ input server died: " ++ show (e :: SomeException)
+        threadDelay wait_time
   where
     emit      = mapM_ (atomically . writeTBQueue ch)
     decode bs = map Types.PackedEvent $ MP.unpack bs

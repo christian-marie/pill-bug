@@ -35,7 +35,7 @@ startShipper segments = do
     -- channel to stream events over
     forM_ inputSegments $ \(InputSegment i) -> case i of 
         FileInput _ _ -> forkIO $ startFileInput in_ch i waitTime
-        ZMQ4Input -> forkIO $ startZMQ4Input in_ch i waitTime
+        ZMQ4Input _ -> forkIO $ startZMQ4Input in_ch i waitTime
 
     -- Output segments however, each get thier own channel. This is so that
     -- inputs all block when any given output blocks. That way we don't leak
