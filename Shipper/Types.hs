@@ -10,6 +10,7 @@ module Shipper.Types (
 where
 
 import qualified Data.ByteString as B
+import qualified Data.ByteString.Lazy as LB
 import Data.Time
 import Control.DeepSeq
 import Data.MessagePack 
@@ -24,7 +25,7 @@ data Event =
     , extra   :: [ExtraInfoPair]
     , time    :: UTCTime
     } 
-    | PackedEvent B.ByteString
+    | PackedEvent LB.ByteString
     deriving (Show)
 
 
@@ -38,8 +39,8 @@ extractKV (k, v) = from k `mappend` from v
 
 instance Packable Event where
     -- A packed event simply returns the packed event, this so that we can pass
-    -- around already packed events that don't need to be re-packde.
-    from (PackedEvent s) = fromByteString s
+    -- around already packed events that don't need to be re-packed.
+    from (PackedEvent s) = fromLazyByteString s
     -- Pack up an unpacked event by taking all of the 'root' key, value pairs
     -- and turning them into a map. Nested stuff follows recursively via the
     -- ExtraInfo Packable instance below.
@@ -64,6 +65,8 @@ instance Packable ExtraInfo where
     from (ExtraList l)   = from l
     from (ExtraMap kvs) = fromMap length (mconcat . map extractKV) kvs 
         
+
+
 -- Pulled from Data.MessagePack.
 -- TODO: request that this is exposed as it is useful and we shouldn't have to
 --       steal it
@@ -97,11 +100,13 @@ type Key           = String
 data Input = FileInput
     { fExtra    :: [ExtraInfoPair]
     , filePaths :: [String] -- May be globs
-    } deriving (Show)
+    }
+    | ZMQ4Input
+    deriving (Show)
 
 data Output =
       Debug
-    | ZMQ
+    | ZMQ4Output
     | Redis
     { rHosts   :: [HostName]
     , rPort    :: PortID
@@ -109,8 +114,6 @@ data Output =
     , rKey     :: B.ByteString
     , rTimeout :: Int
     }
-
-
     deriving (Show)
 
 data ConfigSegment = InputSegment Input | OutputSegment Output
@@ -124,6 +127,7 @@ instance NFData ConfigSegment where
 
 instance NFData Input where
      rnf (FileInput a b) = a `deepseq` b `deepseq` ()
+     rnf ZMQ4Input = ()
 
 instance NFData ExtraInfo where
      rnf (ExtraString a) = a `deepseq` ()
@@ -132,7 +136,7 @@ instance NFData ExtraInfo where
 
 instance NFData Output where
      rnf Debug = ()
-     rnf ZMQ = ()
+     rnf ZMQ4Output = ()
      -- Have to just `seq` PortID as it has no NFData instance
      rnf (Redis a c b d e) = 
         a `deepseq` b `deepseq` c `seq` d `deepseq` e `deepseq` () 

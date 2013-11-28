@@ -33,6 +33,7 @@ executable pill-bug
                        hedis,
                        blaze-builder,
                        transformers,
-                       network
+                       network,
+                       zeromq4-haskell
   -- hs-source-dirs:      
   default-language:    Haskell2010

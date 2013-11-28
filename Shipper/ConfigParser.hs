@@ -26,8 +26,7 @@ import Database.Redis (PortID(PortNumber))
 -- }
 
 parseConfig :: FilePath -> IO [ConfigSegment]
-parseConfig f = force `liftM` cfg
-  where cfg = parseFromFile config f >>= either (error . show) return
+parseConfig f = parseFromFile config f >>= either (error.show) (return.force)
 
 -- Create a file input segment, requires only 'path'
 fileInputSegment :: [ExtraInfoPair] -> ConfigSegment
@@ -53,9 +52,13 @@ fileInputSegment infos = InputSegment FileInput
 debugOutputSegment :: [ExtraInfoPair] -> ConfigSegment
 debugOutputSegment _ = OutputSegment Debug {}
 
--- Create a ZMQ output segment, requires no extra data
-zmqOutputSegment :: [ExtraInfoPair] -> ConfigSegment
-zmqOutputSegment _ = OutputSegment ZMQ {}
+-- Create a ZMQ4 output segment, requires no extra data
+zmq4OutputSegment :: [ExtraInfoPair] -> ConfigSegment
+zmq4OutputSegment _ = OutputSegment ZMQ4Output {}
+
+-- Create a ZMQ4 input segment, requires no extra data
+zmq4InputSegment :: [ExtraInfoPair] -> ConfigSegment
+zmq4InputSegment _ = InputSegment ZMQ4Input {}
 
 -- Create a Redis output segment, requires no extra data
 redisOutputSegment :: [ExtraInfoPair] -> ConfigSegment
@@ -131,7 +134,8 @@ beginSegment = possibleSegment <* spaces <* char '{'
     -- builds a ConfigSegment from a list of ExtraInfos
     possibleSegment =     fileInputSegment   <$ string "file" 
                       <|> debugOutputSegment <$ string "debug"
-                      <|> zmqOutputSegment   <$ string "zmq"
+                      <|> zmq4OutputSegment  <$ (try $ string "zmq4out")
+                      <|> zmq4InputSegment   <$ (try $ string "zmq4in")
                       <|> redisOutputSegment <$ string "redis"
 
 endSegment :: GenParser Char st ()

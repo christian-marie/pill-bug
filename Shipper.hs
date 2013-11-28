@@ -35,6 +35,7 @@ startShipper segments = do
     -- channel to stream events over
     forM_ inputSegments $ \(InputSegment i) -> case i of 
         FileInput _ _ -> forkIO $ startFileInput in_ch i waitTime
+        ZMQ4Input -> forkIO $ startZMQ4Input in_ch i waitTime
 
     -- Output segments however, each get thier own channel. This is so that
     -- inputs all block when any given output blocks. That way we don't leak
@@ -43,7 +44,7 @@ startShipper segments = do
         out_chan <- atomically $ newTBQueue queueSize
         case o of 
             Debug           -> forkIO $ startDebugOutput out_chan waitTime
-            ZMQ             -> forkIO $ undefined
+            ZMQ4Output           -> forkIO $ startZMQ4Output  out_chan waitTime o
             Redis _ _ _ _ _ -> forkIO $ startRedisOutput out_chan waitTime o
         return out_chan
 
