@@ -122,8 +122,11 @@ readThread ch FileInput{..} wait_time log_path =
     -- one line at a time. This seems a lot more robust and a lot better on
     -- memory. It is a lot slower though.
     --
-    -- It's plenty fast enough for any sane log souce though. If that ever
-    -- prooves to be false, we can look into io-streams or pipes
+    -- It's plenty fast enough for any sane log source though. If that ever
+    -- prooves to be false, we can look into io-streams or pipes.
+    --
+    -- Benchmarked very roughly at 2.3 megabytes per second per log source on
+    -- an intel i5 @ 2.6GHZ
     emitFrom :: Handle -> IO ()
     emitFrom h = do
         eof <- hIsEOF h
