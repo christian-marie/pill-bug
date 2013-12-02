@@ -68,8 +68,11 @@ startZMQ4Output ch wait_time Types.ZMQ4Output{..} = loop zoServers
         trySend (s,server) payload = do
             send s [] payload
             res <- poll zoTimeout [Sock s [In] Nothing] 
-            if (null . head) res then recover server servers payload zoTimeout 
-                                 else void $ receive s
+            if (null . head) res then do
+                close s
+                recover server servers payload zoTimeout 
+            else
+                void $ receive s
 
         -- Exponential backoff up to 30 seconds whilst shuffling through
         -- avaliable servers. If a server replies, we carry on with that one
