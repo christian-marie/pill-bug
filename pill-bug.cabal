@@ -35,6 +35,7 @@ executable pill-bug
                        transformers,
                        network,
                        zeromq4-haskell,
-                       timerep
+                       timerep,
+                       random
   -- hs-source-dirs:      
   default-language:    Haskell2010

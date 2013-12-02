@@ -10,6 +10,8 @@ import Data.MessagePack as MP
 import System.ZMQ4.Monadic
 import Blaze.ByteString.Builder
 import Control.Exception
+import System.Random
+import Data.List
 
 -- Output to 0MQ, compressing with lz4 and encrypting 
 startZMQ4Output :: TBQueue Types.Event -> Int -> Types.Output -> IO ()
@@ -26,7 +28,7 @@ startZMQ4Output ch wait_time Types.ZMQ4Output{..} = loop zoServers
             putStrLn $ "ZMQ output failure with '" ++ head servers ++
                 "': " ++ show (e :: ZMQError)
             threadDelay wait_time
-            loop $ shuffle servers
+            loop =<< shuffle servers
       where
 
         tryServer s = do
@@ -61,7 +63,12 @@ startZMQ4Output ch wait_time Types.ZMQ4Output{..} = loop zoServers
             connect s server
             return s
 
-        shuffle ss = last ss : init ss
+        -- Pick a random permutation of the list
+        shuffle :: [a] -> IO [a]
+        shuffle ss = do 
+            i <- getStdRandom $ randomR (0, length ps)
+            return $ ps !! i
+          where ps = permutations ss
 
         -- If the send works, great, don't touch anything.
         -- If it fails, we try the next server in the list.
@@ -90,7 +97,7 @@ startZMQ4Output ch wait_time Types.ZMQ4Output{..} = loop zoServers
         recover failed servers' payload timeout = do
                 liftIO $ putStrLn $ "ZMQ timeout transmitting to " ++ failed
 
-                let shuffled = shuffle servers'
+                shuffled <- liftIO $ shuffle servers'
                 let server  = head shuffled
                 s <- openServer server
 
