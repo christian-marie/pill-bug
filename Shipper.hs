@@ -45,7 +45,7 @@ startShipper segments = do
         case o of 
             Debug            -> forkIO $ startDebugOutput out_chan waitTime
             ZMQ4Output _ _ _ -> forkIO $ startZMQ4Output  out_chan waitTime o
-            Redis _ _ _ _ _  -> forkIO $ startRedisOutput out_chan waitTime o
+            Redis _ _ _ _    -> forkIO $ startRedisOutput out_chan waitTime o
         return out_chan
 
     forever $ do

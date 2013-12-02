@@ -12,7 +12,7 @@ import Database.Redis
 import System.Timeout
 
 startRedisOutput :: TBQueue Event -> Int -> Output -> IO ()
-startRedisOutput ch poll_period Redis{..} = loop rHosts
+startRedisOutput ch poll_period Redis{..} = loop rServers
   where
     -- During normal operation, we simply loop through all of our hosts,
     -- sending a block of events to each in turn.
@@ -34,9 +34,13 @@ startRedisOutput ch poll_period Redis{..} = loop rHosts
       where shuffle hs = last hs : init hs
 
     send [] _        = threadDelay poll_period -- Sending no events is easy!
-    send events host = do
+    send events (host, port) = do
+        print "host is"
+        print host
+        print "port is"
+        print port
         t <- timeout rTimeout $ do
-            conn <- connect $ connectionInfo host
+            conn <- connect $ connectionInfo host port
             runRedis conn $ do
                 -- We don't use pack here as that would give us a lazy
                 -- bytestring, which we'd have to convert to strict to pass
@@ -50,10 +54,10 @@ startRedisOutput ch poll_period Redis{..} = loop rHosts
             Just v -> return v
             Nothing -> error $ "Timeout connecting to " ++ host
 
-    connectionInfo host = ConnInfo
+    connectionInfo host port = ConnInfo
         { connectHost           = host
-        , connectPort           = rPort
+        , connectPort           = port
         , connectAuth           = rAuth
         , connectMaxIdleTime    = 30
-        , connectMaxConnections = length rHosts
+        , connectMaxConnections = length rServers
         }

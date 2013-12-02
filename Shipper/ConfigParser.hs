@@ -116,23 +116,34 @@ zmq4InputSegment infos = InputSegment ZMQ4Input
 -- Create a Redis output segment, requires no extra data
 redisOutputSegment :: [ExtraInfoPair] -> ConfigSegment
 redisOutputSegment infos = OutputSegment Redis
-    { rHosts   = getHost
-    , rPort    = getPort
+    { rServers = getServers
     , rAuth    = getAuth
     , rKey     = getKey
     , rTimeout = getTimeout
     }
   where
-    getHost = case lookup "hosts" infos of
+    getServers = map parseServer $ case lookup "servers" infos of
         Just v -> case v of
             ExtraString s -> [s]
             ExtraList l   -> map onlyString l
-            _ -> error "Redis output wanted list or string as 'hosts'"
-        Nothing -> error "Redis output expected 'hosts' to be specified"
+            _ -> error "Redis output wanted list or string as 'servers'"
+        Nothing -> error "Redis output expected 'servers' to be specified"
       where 
         onlyString e = case e of
             ExtraString s -> s
             _ -> error "Redis output wanted a list of strings as 'host'"
+
+        parseServer s =
+            case B.split ':' $ B.pack s of 
+                [host,port] -> (B.unpack host, parsePort $ B.unpack port)
+                [host] -> (B.unpack host, PortNumber 6379)
+                _ -> error $ "Redis output failed to parse server: " ++ s
+
+        parsePort s =
+          let r = reads s :: [(Int, String)] in
+            if null r then error $ "Redis output failed to parse port: " ++ s
+            else PortNumber $ (fromIntegral . fst . head) r
+            
 
     getTimeout = case lookup "timeout" infos of
         Just v -> case v of
@@ -143,17 +154,6 @@ redisOutputSegment infos = OutputSegment Redis
             _ -> error "Redis output wanted a string as 'timeout'"
         Nothing -> 1000000
                 
-
-    -- No, you cannot currently specify a different port for each host
-    getPort = case lookup "port" infos of
-        Just v -> case v of
-            ExtraString s ->
-                let r = reads s :: [(Int, String)] in
-                if null r then error $ "Invalid redis output port: " ++ s
-                          else PortNumber $ (fromIntegral . fst . head) r
-            _   -> error "Redis output wanted 'port' as a string"
-        Nothing -> defaultPort
-
     getAuth = case lookup "auth" infos of
         Just v -> case v of
             ExtraString s -> Just $ B.pack s
@@ -165,8 +165,6 @@ redisOutputSegment infos = OutputSegment Redis
             ExtraString s -> B.pack s
             _ -> error "Redis output wanted 'key' as a string"
         Nothing -> error "Redis output expected 'key' to be specified"
-
-    defaultPort = PortNumber 6379
 
 -- A config is zero or more segments
 config :: GenParser Char st [ConfigSegment]

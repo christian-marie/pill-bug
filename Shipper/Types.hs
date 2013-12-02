@@ -116,8 +116,7 @@ data Output =
     , zoPublicKey  :: Restricted Div5 B.ByteString
     }
     | Redis
-    { rHosts   :: [HostName]
-    , rPort    :: PortID
+    { rServers :: [(HostName, PortID)]
     , rAuth    :: Maybe B.ByteString
     , rKey     :: B.ByteString
     , rTimeout :: Int
@@ -146,5 +145,7 @@ instance NFData Output where
      rnf (ZMQ4Output a b c) = a `deepseq` b `deepseq` c `seq` ()
      rnf Debug = ()
      -- Have to just `seq` PortID as it has no NFData instance
-     rnf (Redis a c b d e) = 
-        a `deepseq` b `deepseq` c `seq` d `deepseq` e `deepseq` () 
+     rnf (Redis a c b d) = 
+        a `deepseq` b `deepseq` c `deepseq` d `deepseq` ()
+
+instance NFData PortID 
