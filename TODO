@@ -1,4 +1,2 @@
 * Specify hosts with ports in redis output
 * Shuffle zmq outputs randomly for load distribution
-* Rework file input line grabbing logic, seems fragile
-* Make it easy to use crypto with zmq
