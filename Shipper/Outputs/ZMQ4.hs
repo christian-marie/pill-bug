@@ -52,8 +52,7 @@ startZMQ4Output ch wait_time Types.ZMQ4Output{..} = loop zoServers
             let servPub = restrict "Aq<3*WiPzCO<E5&BVnmxpg3*S8rpED1+Xz6axE@B"
             setCurveServerKey TextFormat servPub s
 
-            let pub = restrict ".Bcx@3yQph655AL?6fQIkYv#k=Q3k7]H:9hHmwn#"
-            let priv = restrict "[gM-5NXPBV6ZAQ%M*0IwccFkls1B>m0v#VESOJQX"
+            (pub, priv) <- liftIO curveKeyPair 
             setCurvePublicKey TextFormat pub s
             setCurveSecretKey TextFormat priv s
 
