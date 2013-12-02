@@ -14,7 +14,7 @@ import qualified Data.ByteString.Lazy as LB
 import Control.DeepSeq
 import Data.MessagePack 
 import Blaze.ByteString.Builder
-import Data.Monoid (mconcat, mappend, Monoid)
+import Data.Monoid (mconcat, Monoid)
 import Data.Bits
 import Database.Redis (HostName, PortID)
 import System.ZMQ4 (Timeout)
@@ -37,7 +37,7 @@ data Event =
 
 -- For that, we need to be able to extract our own k, v pair
 extractKV :: (Packable k, Packable v) => (k, v) -> Builder 
-extractKV (k, v) = from k `mappend` from v
+extractKV (k, v) = from k <> from v
 
 instance Packable Event where
     -- A packed event simply returns the packed event, this so that we can pass
@@ -53,9 +53,9 @@ instance Packable Event where
         -- TODO: Date as a float
         --
         allKV e = 
-            [ from "message" `mappend` from (message e)
-            , from "@timestamp" `mappend` from (time e)
-            , from "@version" `mappend` from "1" ]
+            [ from "message"    <> from (message e)
+            , from "@timestamp" <> from (time e)
+            , from "@version"   <> from "1" ]
                 ++ map extractKV (validExtras e)
         -- We obviously cannot attach "message" then.
         validExtras e  = filter ((/="message") . fst) (extra e)
