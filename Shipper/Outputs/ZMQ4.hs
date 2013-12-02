@@ -1,4 +1,4 @@
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RecordWildCards, OverloadedStrings #-}
 module Shipper.Outputs.ZMQ4 (startZMQ4Output) where
 
 import qualified Shipper.Types as Types
@@ -49,6 +49,14 @@ startZMQ4Output ch wait_time Types.ZMQ4Output{..} = loop zoServers
 
         openServer server = do 
             s <- socket Req
+            let servPub = restrict "Aq<3*WiPzCO<E5&BVnmxpg3*S8rpED1+Xz6axE@B"
+            setCurveServerKey TextFormat servPub s
+
+            let pub = restrict ".Bcx@3yQph655AL?6fQIkYv#k=Q3k7]H:9hHmwn#"
+            let priv = restrict "[gM-5NXPBV6ZAQ%M*0IwccFkls1B>m0v#VESOJQX"
+            setCurvePublicKey TextFormat pub s
+            setCurveSecretKey TextFormat priv s
+
             connect s server
             return s
 
