@@ -9,6 +9,7 @@ import Control.Applicative
 import Control.DeepSeq
 import qualified Data.ByteString.Char8 as B
 import Database.Redis (PortID(PortNumber))
+import Data.Restricted
 
 -- A simple parser for pill-bug configurations.
 --
@@ -55,11 +56,20 @@ debugOutputSegment _ = OutputSegment Debug {}
 -- Create a ZMQ4 output segment, requires no extra data
 zmq4OutputSegment :: [ExtraInfoPair] -> ConfigSegment
 zmq4OutputSegment infos = OutputSegment ZMQ4Output
-    { zoServers = getHost
-    , zoTimeout = getTimeout
+    { zoServers   = getServers
+    , zoTimeout   = getTimeout
+    , zoPublicKey = getPublicKey
     }
   where
-    getHost = case lookup "servers" infos of
+    getPublicKey = case lookup "public_key" infos of
+        Just v -> case v of
+            ExtraString s -> case toRestricted $ B.pack s of
+                Just r  -> r
+                Nothing -> error $ "ZMQ output got an invalid 'public_key': "
+                                    ++ s
+            _ -> error "ZMQ output wanted 'public_key' specified as a string"
+        Nothing -> error "ZMQ4 output expected 'public_key' to be specified"
+    getServers = case lookup "servers" infos of
         Just v -> case v of
             ExtraString s -> [s]
             ExtraList l   -> map onlyString l
@@ -83,8 +93,19 @@ zmq4OutputSegment infos = OutputSegment ZMQ4Output
 -- Create a ZMQ4 input segment, requires no extra data
 zmq4InputSegment :: [ExtraInfoPair] -> ConfigSegment
 zmq4InputSegment infos = InputSegment ZMQ4Input
-    { ziBind = getBind }
+    { ziBind = getBind
+    , ziPrivateKey = getPrivateKey
+    }
   where
+    getPrivateKey = case lookup "private_key" infos of
+        Just v -> case v of
+            ExtraString s -> case toRestricted $ B.pack s of
+                Just r  -> r
+                Nothing -> error $ "ZMQ input got an invalid 'private_key': "
+                                    ++ s
+            _ -> error "ZMQ input wanted 'private_key' specified as a string"
+        Nothing -> error "ZMQ4 input expected 'private_key' to be specified"
+
     getBind = case lookup "bind" infos of
         Just v -> case v of
             ExtraString s -> s

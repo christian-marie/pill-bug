@@ -14,11 +14,10 @@ startZMQ4Input :: TBQueue Types.Event -> Types.Input -> Int -> IO ()
 startZMQ4Input ch Types.ZMQ4Input{..} wait_time = forever $ do
     runZMQ $ do
         s <- socket Rep
-        let key = restrict "*=CG{(0Id/7&{Cx./k]xy[]3=D%lb3g/-vnfF&w+"
         setCurveServer True s
-        setCurveSecretKey TextFormat key s
-        
+        setCurveSecretKey TextFormat ziPrivateKey s
         bind s ziBind
+
         forever $ do
             payload <- receive s
             liftIO $ emit $ decode payload

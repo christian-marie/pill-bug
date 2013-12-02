@@ -49,9 +49,11 @@ startZMQ4Output ch wait_time Types.ZMQ4Output{..} = loop zoServers
 
         openServer server = do 
             s <- socket Req
-            let servPub = restrict "Aq<3*WiPzCO<E5&BVnmxpg3*S8rpED1+Xz6axE@B"
-            setCurveServerKey TextFormat servPub s
 
+            -- Setup crypto, building a throwaway keypair for this session. I
+            -- don't care to use the long term client key for any form of
+            -- authentication, so why make people configure it?
+            setCurveServerKey TextFormat zoPublicKey s
             (pub, priv) <- liftIO curveKeyPair 
             setCurvePublicKey TextFormat pub s
             setCurveSecretKey TextFormat priv s

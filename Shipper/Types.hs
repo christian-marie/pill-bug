@@ -18,6 +18,7 @@ import Data.Monoid (mconcat, mappend, Monoid)
 import Data.Bits
 import Database.Redis (HostName, PortID)
 import System.ZMQ4 (Timeout)
+import Data.Restricted
 import Data.Monoid ((<>))
 
 data Event =
@@ -102,14 +103,17 @@ data Input = FileInput
     , filePaths :: [String] -- May be globs
     }
     | ZMQ4Input
-    { ziBind :: String }
+    { ziBind       :: String
+    , ziPrivateKey :: Restricted Div5 B.ByteString
+    }
     deriving (Show)
 
 data Output =
       Debug
     | ZMQ4Output
-    { zoServers :: [String]
-    , zoTimeout :: Timeout
+    { zoServers    :: [String]
+    , zoTimeout    :: Timeout
+    , zoPublicKey  :: Restricted Div5 B.ByteString
     }
     | Redis
     { rHosts   :: [HostName]
@@ -131,7 +135,7 @@ instance NFData ConfigSegment where
 
 instance NFData Input where
      rnf (FileInput a b) = a `deepseq` b `deepseq` ()
-     rnf (ZMQ4Input a) = a `deepseq` ()
+     rnf (ZMQ4Input a b) = a `deepseq` b `seq` ()
 
 instance NFData ExtraInfo where
      rnf (ExtraString a) = a `deepseq` ()
@@ -139,9 +143,8 @@ instance NFData ExtraInfo where
      rnf (ExtraMap as)   = as `deepseq` ()
 
 instance NFData Output where
-     rnf (ZMQ4Output a b) = a `deepseq` b `deepseq` ()
+     rnf (ZMQ4Output a b c) = a `deepseq` b `deepseq` c `seq` ()
      rnf Debug = ()
      -- Have to just `seq` PortID as it has no NFData instance
      rnf (Redis a c b d e) = 
         a `deepseq` b `deepseq` c `seq` d `deepseq` e `deepseq` () 
-
