@@ -68,8 +68,8 @@ instance Packable ExtraInfo where
     from (ExtraMap kvs) = fromMap length (mconcat . map extractKV) kvs 
 
 -- Pulled from Data.MessagePack.
--- TODO: request that this is exposed as it is useful and we shouldn't have to
---       steal it
+-- This would be a lot nicer if something just like this existed:
+-- https://github.com/msgpack/msgpack-haskell/pull/34
 
 fromMap :: (a -> Int) -> (a -> Builder) -> a -> Builder
 fromMap lf pf m =
