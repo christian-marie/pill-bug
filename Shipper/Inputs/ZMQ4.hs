@@ -8,7 +8,9 @@ import Data.MessagePack as MP
 import System.ZMQ4.Monadic
 import Control.Exception
 import Control.Concurrent
+import Data.Maybe
 import qualified Data.ByteString as B
+import qualified Codec.Compression.LZ4 as LZ4
 
 startZMQ4Input :: TBQueue Types.Event -> Types.Input -> Int -> IO ()
 startZMQ4Input ch Types.ZMQ4Input{..} wait_time = forever $ do
@@ -20,11 +22,13 @@ startZMQ4Input ch Types.ZMQ4Input{..} wait_time = forever $ do
 
         forever $ do
             payload <- receive s
-            liftIO $ emit $ decode payload
+            liftIO $ emit $ (decode . decompress) payload
             send s [] B.empty
     `catch` \e -> do
         putStrLn $ "ZMQ input server died: " ++ show (e :: SomeException)
         threadDelay wait_time
   where
-    emit      = mapM_ (atomically . writeTBQueue ch)
-    decode bs = map Types.PackedEvent $ MP.unpack bs
+    emit          = mapM_ (atomically . writeTBQueue ch)
+    decode bs     = map Types.PackedEvent $ MP.unpack bs
+    decompress bs = fromMaybe (error "LZ4.decompress failed") $
+                              LZ4.decompress bs

@@ -13,7 +13,9 @@ import Blaze.ByteString.Builder
 import Control.Exception
 import System.Random
 import Data.Restricted
+import Data.Maybe
 import qualified Data.ByteString as B
+import qualified Codec.Compression.LZ4 as LZ4
 
 -- How many 'packets' we usually send before we rotate to a different server.
 rotationChance :: Int
@@ -61,7 +63,7 @@ loop ch (pub, priv) wait_time Types.ZMQ4Output{..} = do
     tryServer s = do
         es <- liftIO $ readAllEvents ch
         if null es then liftIO $ threadDelay wait_time
-                    else trySend s $ encoded es
+                    else trySend s $ (compress . encode) es
 
         time_to_rotate <- liftIO timeToRotate
         unless time_to_rotate $ tryServer s
@@ -71,8 +73,14 @@ loop ch (pub, priv) wait_time Types.ZMQ4Output{..} = do
         -- bytestrings straight back out and pass them on to whatever
         -- expects the msgpack codec at the destination end, without
         -- re-serialisation
-        encoded es = f $ map f es 
+        encode es = f $ map f es 
             where f o = (toByteString . MP.from) o
+
+        -- We use high compression mode as it is even faster to decompress
+        -- on the other end and I don't mind using a few extra cycles on
+        -- these fringe nodes.
+        compress bs = fromMaybe (error "LZ4.compress failed") $
+                                LZ4.compressHC bs
 
         timeToRotate = (== 0) <$> (getStdRandom $ randomR (0, rotationChance))
 
