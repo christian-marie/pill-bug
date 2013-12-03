@@ -11,6 +11,11 @@ import Control.Exception
 import Database.Redis
 import System.Timeout
 import System.Random
+import Control.Applicative
+
+-- How many 'packets' we usually send before we rotate to a different server.
+rotationChance :: Int
+rotationChance = 1024
 
 startRedisOutput :: TBQueue Event -> Int -> Output -> IO ()
 startRedisOutput ch poll_period Redis{..} = loop =<< randomServer
@@ -35,7 +40,14 @@ startRedisOutput ch poll_period Redis{..} = loop =<< randomServer
 
     trySend events server = do
         (send events server) `catch` (recover events)
-        loop =<< randomServer
+
+        -- Hop around servers every now and then, but generally stick with the
+        -- one we know works for obvious performance reasons.
+        now <- timeToRotate
+        if now then loop =<< randomServer
+               else loop server
+      where
+        timeToRotate = (== 0) <$> (getStdRandom $ randomR (0, rotationChance))
 
     send [] _        = threadDelay poll_period -- Sending no events is easy!
     send events (host, port) = do

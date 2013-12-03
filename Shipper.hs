@@ -15,6 +15,8 @@ import Control.Concurrent.STM.TBQueue
 import Control.Concurrent
 import Control.Monad 
 
+import System.ZMQ4 (curveKeyPair)
+
 -- How long inputs must sleep when there is no more input to read
 waitTime :: Int
 waitTime = 1000000 -- 1s
@@ -37,6 +39,8 @@ startShipper segments = do
         FileInput _ _ -> forkIO $ startFileInput in_ch i waitTime
         ZMQ4Input _ _ -> forkIO $ startZMQ4Input in_ch i waitTime
 
+    k <- curveKeyPair
+
     -- Output segments however, each get thier own channel. This is so that
     -- inputs all block when any given output blocks. That way we don't leak
     -- any memory and outputs don't get out of sync when a single output dies.
@@ -44,7 +48,7 @@ startShipper segments = do
         out_chan <- atomically $ newTBQueue queueSize
         case o of 
             Debug            -> forkIO $ startDebugOutput out_chan waitTime
-            ZMQ4Output _ _ _ -> forkIO $ startZMQ4Output  out_chan waitTime o
+            ZMQ4Output _ _ _ -> forkIO $ startZMQ4Output  out_chan waitTime o k
             Redis _ _ _ _    -> forkIO $ startRedisOutput out_chan waitTime o
         return out_chan
 

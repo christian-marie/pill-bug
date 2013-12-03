@@ -22,30 +22,19 @@ rotationChance :: Int
 rotationChance = 1024
 
 -- Output to 0MQ, compressing with lz4 and encrypting 
-startZMQ4Output :: TBQueue Types.Event -> Int -> Types.Output -> IO ()
-startZMQ4Output ch wait_time zo = do
-    forever $ do
-        k <- curveKeyPair
-        catch (loop ch k wait_time zo)
-              (\e -> do putStrLn $ "ZMQ output failed: " ++ 
-                                    show (e :: SomeException)
-                        threadDelay wait_time)
-
--- This function is much the same as startZMQ4Output, but it takes our
--- 'permanent' keypair generated above. (Only permanent for this ZMQ context,
--- but that's okay!)
---
--- We need to keep the key around for anything that uses the context as ZMQ
--- will fail to connect if we change it.
-loop :: TBQueue Types.Event
-        -> (Restricted Div5 B.ByteString, Restricted Div5 B.ByteString)
+startZMQ4Output :: 
+           TBQueue Types.Event
         -> Int 
         -> Types.Output 
-        -> IO a
-loop ch (pub, priv) wait_time Types.ZMQ4Output{..} = do
-    forever $ do 
-        server <- randomServer
-        catch (runContext server) (zmqFailure server)
+        -> (Restricted Div5 B.ByteString, Restricted Div5 B.ByteString) -- Key pair
+        -> IO ()
+startZMQ4Output ch wait_time Types.ZMQ4Output{..} (pub,priv) = do
+    catch (forever $ do 
+            server <- randomServer
+            catch (runContext server) (zmqFailure server))
+          (\e -> do putStrLn $ "ZMQ output failed: " ++ 
+                               show (e :: SomeException)
+                    threadDelay wait_time)
   where
     runContext server' = runZMQ $ do
         s <- openServer $ server'
