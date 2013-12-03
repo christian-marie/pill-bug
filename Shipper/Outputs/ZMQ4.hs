@@ -12,25 +12,43 @@ import System.ZMQ4.Monadic
 import Blaze.ByteString.Builder
 import Control.Exception
 import System.Random
+import Data.Restricted
+import qualified Data.ByteString as B
 
+-- How many 'packets' we usually send before we rotate to a different server.
 rotationChance :: Int
 rotationChance = 4
+
 -- Output to 0MQ, compressing with lz4 and encrypting 
 startZMQ4Output :: TBQueue Types.Event -> Int -> Types.Output -> IO ()
-startZMQ4Output ch wait_time Types.ZMQ4Output{..} = loop =<< randomServer
-  where
-    loop server = do
-        catch (runContext server) zmqFailure
-        loop =<< randomServer
-      where
-        runContext server' = runZMQ $ do
-            s <- openServer $ server'
-            tryServer (s, server)
+startZMQ4Output ch wait_time zo = do
+    k <- curveKeyPair
+    loop ch k wait_time zo
 
-        zmqFailure :: ZMQError -> IO ()
-        zmqFailure e = do
-            putStrLn $ "ZMQ output failure with '" ++ server ++ "': " ++ show e
-            threadDelay wait_time
+-- This function is much the same as startZMQ4Output, but it takes our
+-- 'permanent' keypair generated above. (Only permanent for this ZMQ context,
+-- but that's okay!)
+--
+-- We need to keep the key around for anything that uses the context as ZMQ
+-- will fail to connect if we change it.
+loop :: TBQueue Types.Event
+        -> (Restricted Div5 B.ByteString, Restricted Div5 B.ByteString)
+        -> Int 
+        -> Types.Output 
+        -> IO a
+loop ch (pub, priv) wait_time Types.ZMQ4Output{..} = do
+    forever $ do 
+        server <- randomServer
+        catch (runContext server) (zmqFailure server)
+  where
+    runContext server' = runZMQ $ do
+        s <- openServer $ server'
+        tryServer (s, server')
+
+    zmqFailure :: String -> ZMQError -> IO ()
+    zmqFailure s e = do
+        putStrLn $ "ZMQ output failure with '" ++ show s ++ "': " ++ show e
+        threadDelay wait_time
 
     randomServer = do 
         i <- getStdRandom $ randomR (0, (length zoServers - 1))
@@ -43,7 +61,7 @@ startZMQ4Output ch wait_time Types.ZMQ4Output{..} = loop =<< randomServer
 
         time_to_rotate <- liftIO timeToRotate
         unless time_to_rotate $ tryServer s
-      where
+        where
         -- Convert to a [ByteString] before encoding that array of
         -- bytestrings. The other end will just take these encoded
         -- bytestrings straight back out and pass them on to whatever
@@ -61,7 +79,6 @@ startZMQ4Output ch wait_time Types.ZMQ4Output{..} = loop =<< randomServer
         -- don't care to use the long term client key for any form of
         -- authentication, so why make people configure it?
         setCurveServerKey TextFormat zoPublicKey s
-        (pub, priv) <- liftIO curveKeyPair 
         setCurvePublicKey TextFormat pub s
         setCurveSecretKey TextFormat priv s
 
