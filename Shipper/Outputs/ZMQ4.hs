@@ -6,108 +6,111 @@ import Shipper.Event(readAllEvents)
 import Control.Concurrent
 import Control.Concurrent.STM.TBQueue
 import Control.Monad
+import Control.Applicative ((<$>))
 import Data.MessagePack as MP
 import System.ZMQ4.Monadic
 import Blaze.ByteString.Builder
 import Control.Exception
 import System.Random
-import Data.List
 
+rotationChance :: Int
+rotationChance = 4
 -- Output to 0MQ, compressing with lz4 and encrypting 
 startZMQ4Output :: TBQueue Types.Event -> Int -> Types.Output -> IO ()
-startZMQ4Output ch wait_time Types.ZMQ4Output{..} = loop zoServers 
+startZMQ4Output ch wait_time Types.ZMQ4Output{..} = loop =<< randomServer
   where
-    loop servers = do
-        -- Open a context with the first server in the list
-        runZMQ $ do
-            s <- openServer $ head servers
-            tryServer (s, head servers)
-        `catch` \e -> do
-            -- These are the only exceptions that should be coming out of the
-            -- ZMQ4 monad
-            putStrLn $ "ZMQ output failure with '" ++ head servers ++
-                "': " ++ show (e :: ZMQError)
-            threadDelay wait_time
-            loop =<< shuffle servers
+    loop server = do
+        catch (runContext server) zmqFailure
+        loop =<< randomServer
       where
+        runContext server' = runZMQ $ do
+            s <- openServer $ server'
+            tryServer (s, server)
 
-        tryServer s = do
-            forever $ do
-                -- TODO:
-                -- non-pseudo randomly shuffle the server list and jump to
-                -- another one for load balancing every now and then.
-                es <- liftIO $ readAllEvents ch
-                if null es then liftIO $ threadDelay wait_time
-                           else trySend s $ encoded es
-          where
-            -- Convert to a [ByteString] before encoding that array of
-            -- bytestrings. The other end will just take these encoded
-            -- bytestrings straight back out and pass them on to whatever
-            -- expects the msgpack codec at the destination end, without
-            -- re-serialisation
-            encoded es = f $ map f es 
-              where f o = (toByteString . MP.from) o
+        zmqFailure :: ZMQError -> IO ()
+        zmqFailure e = do
+            putStrLn $ "ZMQ output failure with '" ++ server ++ "': " ++ show e
+            threadDelay wait_time
 
+    randomServer = do 
+        i <- getStdRandom $ randomR (0, (length zoServers - 1))
+        return $ zoServers !! i
 
-        openServer server = do 
-            s <- socket Req
+    tryServer s = do
+        es <- liftIO $ readAllEvents ch
+        if null es then liftIO $ threadDelay wait_time
+                    else trySend s $ encoded es
 
-            -- Setup crypto, building a throwaway keypair for this session. I
-            -- don't care to use the long term client key for any form of
-            -- authentication, so why make people configure it?
-            setCurveServerKey TextFormat zoPublicKey s
-            (pub, priv) <- liftIO curveKeyPair 
-            setCurvePublicKey TextFormat pub s
-            setCurveSecretKey TextFormat priv s
+        time_to_rotate <- liftIO timeToRotate
+        unless time_to_rotate $ tryServer s
+      where
+        -- Convert to a [ByteString] before encoding that array of
+        -- bytestrings. The other end will just take these encoded
+        -- bytestrings straight back out and pass them on to whatever
+        -- expects the msgpack codec at the destination end, without
+        -- re-serialisation
+        encoded es = f $ map f es 
+            where f o = (toByteString . MP.from) o
 
-            connect s server
-            return s
+        timeToRotate = (== 0) <$> (getStdRandom $ randomR (0, rotationChance))
 
-        -- Pick a random permutation of the list
-        shuffle :: [a] -> IO [a]
-        shuffle ss = do 
-            i <- getStdRandom $ randomR (0, length ps)
-            return $ ps !! i
-          where ps = permutations ss
+    openServer server = do 
+        s <- socket Req
 
-        -- If the send works, great, don't touch anything.
-        -- If it fails, we try the next server in the list.
-        trySend (s,server) payload = do
-            send s [] payload
-            res <- poll zoTimeout [Sock s [In] Nothing] 
-            if (null . head) res then do
-                close s
-                recover server servers payload zoTimeout 
-            else
-                void $ receive s
+        -- Setup crypto, building a throwaway keypair for this session. I
+        -- don't care to use the long term client key for any form of
+        -- authentication, so why make people configure it?
+        setCurveServerKey TextFormat zoPublicKey s
+        (pub, priv) <- liftIO curveKeyPair 
+        setCurvePublicKey TextFormat pub s
+        setCurveSecretKey TextFormat priv s
 
-        -- Exponential backoff up to 30 seconds whilst shuffling through
-        -- avaliable servers. If a server replies, we carry on with that one
-        -- from now on.
-        --
-        -- This doesn't allow for any real load balancing, but does work very
-        -- well in the event of a dead server. 
-        --
-        -- We can achieve load balancing later either simply, by connecting to
-        -- a random server every now and then.
-        --
-        -- If we really want to ramp up complexity and bandwith usage for no
-        -- real benifit, maybe implement:
-        -- http://zguide.zeromq.org/php:chapter4#Model-Three-Complex-and-Nasty
-        recover failed servers' payload timeout = do
-                liftIO $ putStrLn $ "ZMQ timeout transmitting to " ++ failed
+        -- No lingering of sent messages on zmq_close(), this avoids duplicate
+        -- messages as much as possible.
+        setLinger (restrict (0 :: Integer)) s
 
-                shuffled <- liftIO $ shuffle servers'
-                let server  = head shuffled
-                s <- openServer server
+        connect s server
+        return s
 
-                send s [] payload
+    -- If the send works, great, don't touch anything.
+    -- If it fails, we try the next server in the list.
+    trySend (s,server) payload = do
+        send s [] payload
+        res <- poll zoTimeout [Sock s [In] Nothing] 
+        if (null . head) res then do
+            close s
+            recover server payload zoTimeout 
+        else
+            void $ receive s
 
-                res <- poll timeout [Sock s [In] Nothing] 
-                if (null . head) res then
-                    recover server shuffled payload $ min (timeout * 2) 30000
-                else
-                    void $ receive s
+    -- Exponential backoff up to 30 seconds whilst shuffling through
+    -- avaliable servers. If a server replies, we carry on with that one
+    -- from now on.
+    --
+    -- This doesn't allow for any real load balancing, but does work very
+    -- well in the event of a dead server. 
+    --
+    -- We can achieve load balancing later either simply, by connecting to
+    -- a random server every now and then.
+    --
+    -- If we really want to ramp up complexity and bandwith usage for no
+    -- real benifit, maybe implement:
+    -- http://zguide.zeromq.org/php:chapter4#Model-Three-Complex-and-Nasty
+    recover failed payload timeout = do
+        liftIO $ putStrLn $ "ZMQ timeout transmitting to " ++ failed
 
-                close s
-                liftIO $ loop shuffled
+        new_server <- liftIO randomServer
+        s <- openServer new_server
+
+        send s [] payload
+
+        res <- poll timeout [Sock s [In] Nothing] 
+        if (null . head) res then do
+            close s
+            recover new_server payload $ min (timeout * 2) 30000
+        else do
+            receive s
+            close s
+            liftIO $ putStrLn "ZMQ output recovered"
+
+        -- Execution resumes in 'loop', on another random server.

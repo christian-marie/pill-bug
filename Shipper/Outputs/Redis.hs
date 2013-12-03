@@ -35,10 +35,6 @@ startRedisOutput ch poll_period Redis{..} = loop rServers
 
     send [] _        = threadDelay poll_period -- Sending no events is easy!
     send events (host, port) = do
-        print "host is"
-        print host
-        print "port is"
-        print port
         t <- timeout rTimeout $ do
             conn <- connect $ connectionInfo host port
             runRedis conn $ do
