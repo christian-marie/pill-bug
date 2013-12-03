@@ -49,9 +49,6 @@ instance Packable Event where
     from event@(UnpackedEvent _ _ _) = fromMap eventLen (mconcat . allKV) event
       where
         -- A msgpack event is the message, then all of the extra data tacked on
-        --
-        -- TODO: Date as a float
-        --
         allKV e = 
             [ from "message"    <> from (message e)
             , from "@timestamp" <> from (time e)

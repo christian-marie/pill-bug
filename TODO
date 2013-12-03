@@ -1,2 +1,0 @@
-* Specify hosts with ports in redis output
-* Shuffle zmq outputs randomly for load distribution
