@@ -19,7 +19,7 @@ import qualified Codec.Compression.LZ4 as LZ4
 
 -- How many 'packets' we usually send before we rotate to a different server.
 rotationChance :: Int
-rotationChance = 4
+rotationChance = 1024
 
 -- Output to 0MQ, compressing with lz4 and encrypting 
 startZMQ4Output :: TBQueue Types.Event -> Int -> Types.Output -> IO ()

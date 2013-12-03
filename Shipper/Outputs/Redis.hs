@@ -10,28 +10,32 @@ import Blaze.ByteString.Builder
 import Control.Exception 
 import Database.Redis
 import System.Timeout
+import System.Random
 
 startRedisOutput :: TBQueue Event -> Int -> Output -> IO ()
-startRedisOutput ch poll_period Redis{..} = loop rServers
+startRedisOutput ch poll_period Redis{..} = loop =<< randomServer
   where
+    randomServer = do 
+        i <- getStdRandom $ randomR (0, (length rServers - 1))
+        return $ rServers !! i
+
     -- During normal operation, we simply loop through all of our hosts,
     -- sending a block of events to each in turn.
-    loop hosts = do
+    loop server = do
         events <- readAllEvents ch
-        trySend events hosts
+        trySend events server
     
     -- On failure, we keep trying to send that one block of events, clogging
     -- everyone's tubes up until we can transmit them.
-    recover events hosts err = do
+    recover events err = do
         putStrLn $ "Retrying send of " ++ (show . length) events ++ 
                    " events after redis push: " ++ show (err :: SomeException)
         threadDelay poll_period 
-        trySend events hosts
+        trySend events =<< randomServer
 
-    trySend events hosts = do
-        (send events $ head hosts) `catch` (recover events $ shuffle hosts)
-        loop $ shuffle hosts
-      where shuffle hs = last hs : init hs
+    trySend events server = do
+        (send events server) `catch` (recover events)
+        loop =<< randomServer
 
     send [] _        = threadDelay poll_period -- Sending no events is easy!
     send events (host, port) = do
