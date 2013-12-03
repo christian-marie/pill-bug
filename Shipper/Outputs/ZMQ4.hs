@@ -22,8 +22,12 @@ rotationChance = 4
 -- Output to 0MQ, compressing with lz4 and encrypting 
 startZMQ4Output :: TBQueue Types.Event -> Int -> Types.Output -> IO ()
 startZMQ4Output ch wait_time zo = do
-    k <- curveKeyPair
-    loop ch k wait_time zo
+    forever $ do
+        k <- curveKeyPair
+        catch (loop ch k wait_time zo)
+              (\e -> do putStrLn $ "ZMQ output failed: " ++ 
+                                    show (e :: SomeException)
+                        threadDelay wait_time)
 
 -- This function is much the same as startZMQ4Output, but it takes our
 -- 'permanent' keypair generated above. (Only permanent for this ZMQ context,
