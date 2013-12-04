@@ -6,7 +6,7 @@ import Control.Concurrent.STM.TBQueue
 import Control.Monad
 import Control.Concurrent
 
-startDebugOutput :: TBQueue Event -> Int -> IO ()
+startDebugOutput :: TBQueue ChannelPayload -> Int -> IO ()
 startDebugOutput ch wait_time = forever $ printEvents =<< readAllEvents ch
   where
     printEvents [] = threadDelay wait_time

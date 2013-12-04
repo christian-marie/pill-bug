@@ -23,7 +23,7 @@ rotationChance = 1024
 
 -- Output to 0MQ, compressing with lz4 and encrypting 
 startZMQ4Output :: 
-           TBQueue Types.Event
+           TBQueue Types.ChannelPayload
         -> Int 
         -> Types.Output 
         -> (Restricted Div5 B.ByteString, Restricted Div5 B.ByteString) -- Key pair
@@ -94,6 +94,10 @@ startZMQ4Output ch wait_time Types.ZMQ4Output{..} (pub,priv) = do
     -- If it fails, we try the next server in the list.
     trySend (s,server) payload = do
         send s [] payload
+        -- For whatever reason, this poll never returns when compiling with
+        -- benchmarking options on (in .cabal file)
+        --
+        -- Go figure.
         res <- poll zoTimeout [Sock s [In] Nothing] 
         if (null . head) res then do
             close s

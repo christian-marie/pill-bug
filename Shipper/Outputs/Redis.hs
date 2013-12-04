@@ -17,7 +17,7 @@ import Control.Applicative
 rotationChance :: Int
 rotationChance = 1024
 
-startRedisOutput :: TBQueue Event -> Int -> Output -> IO ()
+startRedisOutput :: TBQueue ChannelPayload -> Int -> Output -> IO ()
 startRedisOutput ch poll_period Redis{..} = loop =<< randomServer
   where
     randomServer = do 

@@ -12,7 +12,7 @@ import Data.Maybe
 import qualified Data.ByteString as B
 import qualified Codec.Compression.LZ4 as LZ4
 
-startZMQ4Input :: TBQueue Types.Event -> Types.Input -> Int -> IO ()
+startZMQ4Input :: TBQueue Types.ChannelPayload-> Types.Input -> Int -> IO ()
 startZMQ4Input ch Types.ZMQ4Input{..} wait_time = forever $ do
     runZMQ $ do
         s <- socket Rep
@@ -28,7 +28,7 @@ startZMQ4Input ch Types.ZMQ4Input{..} wait_time = forever $ do
         putStrLn $ "ZMQ input server died: " ++ show (e :: SomeException)
         threadDelay wait_time
   where
-    emit          = mapM_ (atomically . writeTBQueue ch)
+    emit          = atomically . writeTBQueue ch . Types.Multiple
     decode bs     = map Types.PackedEvent $ MP.unpack bs
     decompress bs = fromMaybe (error "LZ4.decompress failed") $
                               LZ4.decompress bs

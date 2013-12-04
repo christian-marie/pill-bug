@@ -29,7 +29,7 @@ rotationWait = 3000000 -- 3 seconds
 globRate :: Int
 globRate = 10000000 -- 10 seconds
 
-startFileInput :: TBQueue Event -> Input -> Int -> IO ()
+startFileInput :: TBQueue ChannelPayload -> Input -> Int -> IO ()
 startFileInput ch input@FileInput{..} wait_time = do
     manager <- TM.make
     manageThreads manager ([] :: [(FilePath, ThreadId)])
@@ -90,7 +90,7 @@ expandGlobs fp = do
     allMatches = (concat . fst) <$> globDir [pattern] dir
 
 -- Start the log watching process by opening the file and seeking to end.
-readThread ::  TBQueue Event -> Input -> Int -> FilePath -> IO ()
+readThread ::  TBQueue ChannelPayload -> Input -> Int -> FilePath -> IO ()
 readThread ch FileInput{..} wait_time log_path = 
     withFile log_path ReadMode $ \h -> do
         inode <- getFileID log_path
@@ -133,8 +133,10 @@ readThread ch FileInput{..} wait_time log_path =
         if eof then
             return ()
         else do
+            -- Slowly but steadily write one event as we read it and package it
+            -- up
             e <- B.hGetLine h >>= buildEvent
-            atomically $ writeTBQueue ch e
+            atomically $ writeTBQueue ch $ Single e
             emitFrom h
 
     -- Tack on the time at the moment that the event is packaged up

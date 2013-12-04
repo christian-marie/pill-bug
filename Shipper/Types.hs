@@ -4,6 +4,7 @@ module Shipper.Types (
     Output(..),
     ConfigSegment(..),
     ExtraInfo(..),
+    ChannelPayload(..),
     ExtraInfoPair,
     Key
 )
@@ -30,6 +31,7 @@ data Event =
     | PackedEvent LB.ByteString
     deriving (Show)
 
+data ChannelPayload = Single Event | Multiple [Event]
 
 -- It's a little tricky to get haskell objects packed into msgpack objects as
 -- most datatypes are homgeneous. We get arround this by creating our own

@@ -26,10 +26,10 @@ allowedTime = 100000 -- 100ms
 --
 -- We call this in order to read at most a packet sized array of events from
 -- the given channel.
-readAllEvents :: TBQueue Event -> IO [Event]
+readAllEvents :: TBQueue ChannelPayload -> IO [Event]
 readAllEvents ch = readAllEvents' ch maxPacketSize allowedTime
   where
-    readAllEvents' :: TBQueue Event -> Int -> Int -> IO [Event]
+    readAllEvents' :: TBQueue ChannelPayload -> Int -> Int -> IO [Event]
     readAllEvents' _ 0 _ = return []
     readAllEvents' _ _ 0 = return []
     readAllEvents' ch' current_size start_time = do
@@ -38,7 +38,7 @@ readAllEvents ch = readAllEvents' ch maxPacketSize allowedTime
             Nothing -> let delay = 10000 in do -- 10ms
                 threadDelay delay
                 readAllEvents' ch current_size (start_time - delay)
-            Just e  -> do
+            Just payload  -> do
                 -- This allows other (read: input) threads control over
                 -- execution, which, worst case scenario is handed off to
                 -- another output thread.
@@ -54,5 +54,6 @@ readAllEvents ch = readAllEvents' ch maxPacketSize allowedTime
                 -- for that. And I'm super lucky like that.
                 yield
                 rest <- readAllEvents' ch (current_size - 1) start_time
-                return (e : rest)
+                case payload of Single e    -> return $ e : rest
+                                Multiple es -> return $ es ++ rest
 

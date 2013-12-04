@@ -24,7 +24,6 @@ waitTime = 1000000 -- 1s
 queueSize :: Int
 queueSize = maxPacketSize
 
-
 startShipper :: [ConfigSegment] -> IO ()
 startShipper segments = do
     -- Events read from inputs come through this 'channel'
