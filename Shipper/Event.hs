@@ -1,6 +1,7 @@
 module Shipper.Event (
     readAllEvents,
     maxPacketSize
+
 )
 where
 
@@ -16,6 +17,9 @@ import Control.Concurrent
 maxPacketSize :: Int
 maxPacketSize = 1024
 
+allowedTime :: Int
+allowedTime = 100000 -- 100ms
+
 -- This was originally in the STM monad, however was moved to IO just to call
 -- yield. The yield is needed when testing with a channel size of one, to
 -- ensure that no extremely non-linear performance characteristics emerge.
@@ -23,14 +27,17 @@ maxPacketSize = 1024
 -- We call this in order to read at most a packet sized array of events from
 -- the given channel.
 readAllEvents :: TBQueue Event -> IO [Event]
-readAllEvents = readAllEvents' maxPacketSize
+readAllEvents ch = readAllEvents' ch maxPacketSize allowedTime
   where
-    readAllEvents' :: Int -> TBQueue Event -> IO [Event]
-    readAllEvents' 0 _ = return []
-    readAllEvents' current_size ch = do
-        me <- atomically $ tryReadTBQueue ch
+    readAllEvents' :: TBQueue Event -> Int -> Int -> IO [Event]
+    readAllEvents' _ 0 _ = return []
+    readAllEvents' _ _ 0 = return []
+    readAllEvents' ch' current_size start_time = do
+        me <- atomically $ tryReadTBQueue ch'
         case me of
-            Nothing -> return []
+            Nothing -> let delay = 10000 in do -- 10ms
+                threadDelay delay
+                readAllEvents' ch current_size (start_time - delay)
             Just e  -> do
                 -- This allows other (read: input) threads control over
                 -- execution, which, worst case scenario is handed off to
@@ -46,6 +53,6 @@ readAllEvents = readAllEvents' maxPacketSize
                 -- But the scheduler would have to become really really dumb
                 -- for that. And I'm super lucky like that.
                 yield
-                rest <- readAllEvents' (current_size - 1) ch
+                rest <- readAllEvents' ch (current_size - 1) start_time
                 return (e : rest)
 
