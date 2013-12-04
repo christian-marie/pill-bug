@@ -12,6 +12,7 @@ import Database.Redis
 import System.Timeout
 import System.Random
 import Control.Applicative
+import Control.Monad.IO.Class
 
 -- How many 'packets' we usually send before we rotate to a different server.
 rotationChance :: Int

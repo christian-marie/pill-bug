@@ -52,7 +52,7 @@ startZMQ4Output ch wait_time Types.ZMQ4Output{..} (pub,priv) = do
     tryServer s = do
         es <- liftIO $ readAllEvents ch
         if null es then liftIO $ threadDelay wait_time
-                    else trySend s $ (compress . encode) es
+                   else trySend s $ (compress . encode) es
 
         time_to_rotate <- liftIO timeToRotate
         unless time_to_rotate $ tryServer s
@@ -97,7 +97,7 @@ startZMQ4Output ch wait_time Types.ZMQ4Output{..} (pub,priv) = do
         res <- poll zoTimeout [Sock s [In] Nothing] 
         if (null . head) res then do
             close s
-            recover server payload zoTimeout 
+            tryServer =<< recover server payload zoTimeout
         else
             void $ receive s
 
@@ -128,7 +128,7 @@ startZMQ4Output ch wait_time Types.ZMQ4Output{..} (pub,priv) = do
             recover new_server payload $ min (timeout * 2) 30000
         else do
             receive s
-            close s
             liftIO $ putStrLn "ZMQ output recovered"
+            return (s, new_server)
 
         -- Execution resumes in 'loop', on another random server.
