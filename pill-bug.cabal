@@ -17,7 +17,8 @@ cabal-version:       >=1.10
 
 
 executable pill-bug
-  ghc-options: -O3
+  -- ghc-options:         -O2
+  ghc-options:         -O2 -prof -auto-all -caf-all -fforce-recomp
   main-is:             Main.hs
   -- other-modules:       
   -- other-extensions:    
