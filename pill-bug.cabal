@@ -27,7 +27,7 @@ executable pill-bug
                        stm,
                        bytestring,
                        time,
-                       parsec,
+                       trifecta,
                        deepseq,
                        Glob,
                        threadmanager,
