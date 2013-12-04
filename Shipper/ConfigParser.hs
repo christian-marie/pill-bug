@@ -233,7 +233,7 @@ anyString = quotedString '"' <|> quotedString '\'' <|> literalString
   where
     -- Literal strings are basically barewords, the only limitation being
     -- whitespace at the beginning/end of lines, double quotes and commas.
-    literalString = strip `liftM` (many $ noneOf ",\n\r'\"[]}")
+    literalString = strip `liftM` (some $ noneOf ",\n\r'\"[]}")
         <?> "literal string"
 
     -- If you need whitespace at the beginning/end of lines, double quotes or
