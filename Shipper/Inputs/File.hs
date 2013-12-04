@@ -140,6 +140,14 @@ readThread ch FileInput{..} wait_time log_path =
     -- Tack on the time at the moment that the event is packaged up
     buildEvent :: B.ByteString -> IO Event
     buildEvent line = do
+        -- This call to create a formatted time is super expensive and accounts
+        -- for around 60% of cycles.
+        --
+        -- Perhaps getting the system time is simply slow. If the file input is
+        -- to go faster, it needs to take a chunked approach to reading lines.
+        -- Which involves being smart about partially finished lines. Which is
+        -- going to be a pain in the ass. I'm happy enough with the performance
+        -- of this.
         t <- showRFC3339 <$> getZonedTime
         return UnpackedEvent
             {message = line
