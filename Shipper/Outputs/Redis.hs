@@ -1,6 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
 module Shipper.Outputs.Redis (startRedisOutput) where
 
+import Prelude hiding (catch)
 import Shipper.Types
 import Shipper.Event(readAllEvents)
 import Control.Concurrent

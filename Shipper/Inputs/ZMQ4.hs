@@ -1,6 +1,7 @@
 {-# LANGUAGE RecordWildCards, OverloadedStrings #-}
 module Shipper.Inputs.ZMQ4 (startZMQ4Input) where
 
+import Prelude hiding (catch)
 import qualified Shipper.Types as Types
 import Control.Concurrent.STM
 import Control.Monad

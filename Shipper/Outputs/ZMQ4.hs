@@ -2,6 +2,7 @@
 module Shipper.Outputs.ZMQ4 (startZMQ4Output) where
 
 import qualified Shipper.Types as Types
+import Prelude hiding (catch)
 import Shipper.Event(readAllEvents)
 import Control.Concurrent
 import Control.Concurrent.STM.TBQueue

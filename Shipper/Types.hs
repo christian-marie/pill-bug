@@ -148,3 +148,5 @@ instance NFData Output where
         a `deepseq` b `deepseq` c `deepseq` d `deepseq` ()
 
 instance NFData PortID 
+instance NFData B.ByteString
+
